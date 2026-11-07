@@ -1,0 +1,698 @@
+// Generated from SPEC.md §6. Do not change the data model without asking (see CLAUDE.md).
+// Only deviations from §6: formatting (one field per line) and two back-relation fields
+// on Document (`credential`, `ltsForProject`) that Prisma requires. Neither adds a column.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ───────────── Tenancy & users ─────────────
+enum FirmStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum Role {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  BROKER
+  SALES_MANAGER
+  SALES_PERSON
+}
+
+model Firm {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  address   String?
+  logoKey   String?
+  status    FirmStatus @default(ACTIVE)
+  users     User[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model User {
+  id           String       @id @default(cuid())
+  firmId       String? // null only for SUPER_ADMIN
+  firm         Firm?        @relation(fields: [firmId], references: [id])
+  role         Role
+  email        String       @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  photoKey     String?
+  isActive     Boolean      @default(true)
+  managerId    String? // SALES_PERSON → SALES_MANAGER
+  manager      User?        @relation("ManagerTeam", fields: [managerId], references: [id])
+  team         User[]       @relation("ManagerTeam")
+  brokerId     String? // SALES_MANAGER → BROKER
+  broker       User?        @relation("BrokerManagers", fields: [brokerId], references: [id])
+  managers     User[]       @relation("BrokerManagers")
+  referralCode String?      @unique // consultants only, e.g. "JKPOL"
+  bio          String?
+  credentials  Credential[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([firmId, role])
+}
+
+// ───────────── Credentials & badges ─────────────
+enum CredentialType {
+  PRC_LICENSE
+  DHSUD_REGISTRATION
+}
+
+enum ReviewStatus {
+  PENDING_AI
+  NEEDS_ATTENTION
+  READY_FOR_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Credential {
+  id            String         @id @default(cuid())
+  firmId        String
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  type          CredentialType
+  numberEntered String // typed by CompanyAdmin
+  documentId    String?        @unique
+  document      Document?      @relation(fields: [documentId], references: [id])
+  expiresAt     DateTime? // from AI extraction, confirmed by broker
+  status        ReviewStatus   @default(PENDING_AI)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  rejectReason  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([firmId, userId])
+}
+
+// ───────────── Developers & properties ─────────────
+model Developer {
+  id                  String               @id @default(cuid())
+  firmId              String // a firm's partner record
+  name                String // e.g. "Vista Land (Camella)"
+  isActive            Boolean              @default(true)
+  projects            Project[]
+  commissionTemplates CommissionTemplate[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([firmId, name])
+}
+
+model Project {
+  id            String                                 @id @default(cuid())
+  firmId        String
+  developerId   String
+  developer     Developer                              @relation(fields: [developerId], references: [id])
+  name          String
+  locationText  String
+  geom          Unsupported("geography(Point,4326)")?
+  ltsDocumentId String?                                @unique
+  ltsDocument   Document?                              @relation("ProjectLTS", fields: [ltsDocumentId], references: [id])
+  ltsNumber     String?
+  ltsExpiresAt  DateTime?
+  ltsStatus     ReviewStatus                           @default(PENDING_AI)
+  properties    Property[]
+  createdAt     DateTime                               @default(now())
+  updatedAt     DateTime                               @updatedAt
+
+  @@index([geom], map: "Project_geom_gist", type: Gist)
+}
+
+enum ListingSource {
+  DEVELOPER
+  INDIVIDUAL_SELLER
+}
+
+enum PropertyType {
+  HOUSE_AND_LOT
+  LOT
+  CONDO
+  TOWNHOUSE
+  COMMERCIAL
+  OTHER
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  NEEDS_ATTENTION
+  LIVE
+  REJECTED
+  SUSPENDED
+  SOLD
+}
+
+model Property {
+  id              String                                 @id @default(cuid())
+  firmId          String
+  source          ListingSource
+  projectId       String? // DEVELOPER listings (a unit/model)
+  project         Project?                               @relation(fields: [projectId], references: [id])
+  sellerRequestId String?                                @unique // INDIVIDUAL_SELLER listings
+  sellerRequest   SellerListingRequest?                  @relation(fields: [sellerRequestId], references: [id])
+  assignedAgentId String? // INDIVIDUAL_SELLER: the agent the seller chose (all inquiries go here)
+  title           String
+  slug            String                                 @unique
+  type            PropertyType
+  description     String?
+  price           Decimal                                @db.Decimal(14, 2) // TCP / asking price
+  lotAreaSqm      Decimal?                               @db.Decimal(10, 2)
+  floorAreaSqm    Decimal?                               @db.Decimal(10, 2)
+  bedrooms        Int?
+  bathrooms       Int?
+  barangay        String?
+  city            String                                 @default("Naga City")
+  province        String                                 @default("Camarines Sur")
+  geom            Unsupported("geography(Point,4326)")?
+  status          ListingStatus                          @default(DRAFT)
+  photos          PropertyPhoto[]
+  badges          PropertyBadge[]
+  loanQuotations  LoanQuotation[]
+  publishedAt     DateTime?
+  createdAt       DateTime                               @default(now())
+  updatedAt       DateTime                               @updatedAt
+
+  @@index([firmId, status])
+  @@index([geom], map: "Property_geom_gist", type: Gist)
+}
+
+model PropertyPhoto {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  key        String
+  sort       Int      @default(0)
+}
+
+enum BadgeType {
+  PRC_VERIFIED
+  DHSUD_REGISTERED
+  OWNERSHIP_VERIFIED
+  LTS_VERIFIED
+  TAX_CURRENT
+  TITLE_CLEAN
+}
+
+model PropertyBadge {
+  id          String    @id @default(cuid())
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id])
+  type        BadgeType // OWNERSHIP_VERIFIED | LTS_VERIFIED | TAX_CURRENT | TITLE_CLEAN
+  grantedById String // broker
+  grantedAt   DateTime  @default(now())
+  validUntil  DateTime? // e.g. LTS expiry, tax period end
+
+  @@unique([propertyId, type])
+}
+
+// Consultant badges (PRC_VERIFIED, DHSUD_REGISTERED) are derived from APPROVED, unexpired Credential rows — not stored separately.
+
+model LoanQuotation {
+  id                  String        @id @default(cuid())
+  propertyId          String
+  property            Property      @relation(fields: [propertyId], references: [id])
+  label               String // e.g. "Pag-IBIG 30 yrs", "Bank 20 yrs", "In-house 5 yrs"
+  paymentMethod       PaymentMethod
+  reservationFee      Decimal       @db.Decimal(14, 2)
+  downpaymentPct      Decimal       @db.Decimal(6, 3)
+  dpTermMonths        Int
+  monthlyDp           Decimal       @db.Decimal(14, 2)
+  loanAmount          Decimal       @db.Decimal(14, 2)
+  interestRatePct     Decimal?      @db.Decimal(6, 3)
+  loanTermYears       Int?
+  monthlyAmortization Decimal?      @db.Decimal(14, 2)
+  notes               String?
+}
+
+// ───────────── Individual seller requests ─────────────
+enum SellerRequestStatus {
+  NEW
+  ACCEPTED
+  DOCUMENTS_IN_PROGRESS
+  SUBMITTED_FOR_REVIEW
+  LISTED
+  DECLINED
+}
+
+model SellerListingRequest {
+  id           String              @id @default(cuid())
+  firmId       String // firm of the chosen agent
+  agentId      String // chosen agent (any firm)
+  sellerName   String
+  sellerPhone  String
+  sellerEmail  String?
+  locationText String
+  propertyType PropertyType
+  lotAreaSqm   Decimal?            @db.Decimal(10, 2)
+  floorAreaSqm Decimal?            @db.Decimal(10, 2)
+  askingPrice  Decimal             @db.Decimal(14, 2)
+  hasTitle     Boolean
+  photoKeys    String[]
+  status       SellerRequestStatus @default(NEW)
+  consentAt    DateTime // Data Privacy Act consent checkbox
+  property     Property?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([firmId, agentId])
+}
+
+// ───────────── Inquiries, leads, clients ─────────────
+enum NatureOfWork {
+  EMPLOYED
+  OFW
+  BUSINESS
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  DEFERRED_CASH
+  IN_HOUSE
+  BANK
+  PAG_IBIG
+  NOT_SURE
+}
+
+enum CivilStatus {
+  SINGLE
+  MARRIED
+  SEPARATED
+}
+
+enum InquirySource {
+  ORGANIC
+  REFERRAL
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  VISIT_SCHEDULED
+  RESERVED
+  LOST
+}
+
+model Inquiry {
+  id           String        @id @default(cuid())
+  firmId       String // = property.firmId
+  propertyId   String
+  consultantId String // picked, referral, or seller's chosen agent
+  source       InquirySource
+  referralCode String?
+  buyerName    String
+  buyerPhone   String
+  buyerEmail   String?
+  natureOfWork NatureOfWork
+  paymentPref  PaymentMethod
+  civilStatus  CivilStatus
+  message      String?
+  status       LeadStatus    @default(NEW)
+  consentAt    DateTime
+  client       Client?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([firmId, consultantId, status])
+}
+
+enum EmploymentType {
+  LOCALLY_EMPLOYED
+  OFW
+  SELF_EMPLOYED
+}
+
+enum ClientStatus {
+  ACTIVE
+  CLOSING
+  COMPLETED
+  CANCELLED
+}
+
+model Client {
+  id                String          @id @default(cuid())
+  firmId            String
+  inquiryId         String?         @unique
+  inquiry           Inquiry?        @relation(fields: [inquiryId], references: [id])
+  propertyId        String
+  consultantId      String // who HANDLES the client → drives commission split
+  fullName          String
+  phone             String
+  email             String?
+  civilStatus       CivilStatus
+  paymentMethod     PaymentMethod // NOT_SURE not allowed here
+  employmentType    EmploymentType? // required for BANK / PAG_IBIG
+  tcp               Decimal         @db.Decimal(14, 2) // total contract price (may differ from list price)
+  saleType          SaleType
+  reservationPaidAt DateTime
+  status            ClientStatus    @default(ACTIVE)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([firmId, consultantId])
+}
+
+enum SaleType {
+  DEVELOPER_SALE
+  PRIVATE_SALE
+}
+
+// ───────────── Payments ─────────────
+enum PaymentKind {
+  RESERVATION
+  DOWNPAYMENT
+  FULL_CASH
+  DEFERRED_INSTALLMENT
+  IN_HOUSE_INSTALLMENT
+  LOAN_RELEASE
+  OTHER
+}
+
+model Payment {
+  id              String      @id @default(cuid())
+  firmId          String
+  clientId        String
+  kind            PaymentKind
+  amount          Decimal     @db.Decimal(14, 2) // confirmed amount (AI-suggested, human-confirmed)
+  paidAt          DateTime
+  proofDocumentId String?     @unique
+  confirmedById   String? // uploader confirms AI-read amount
+  createdAt       DateTime    @default(now())
+
+  @@index([firmId, clientId])
+}
+
+// ───────────── Requirements checklist ─────────────
+enum RequirementStage {
+  RESERVATION
+  FINANCING
+}
+
+enum ReqItemStatus {
+  MISSING
+  UPLOADED
+  NEEDS_ATTENTION
+  VERIFIED
+  WAIVED
+}
+
+model RequirementItem {
+  id           String           @id @default(cuid())
+  firmId       String
+  clientId     String
+  code         String // e.g. "VALID_ID_1", "CENOMAR", "PAYSLIP_3M" (see §9)
+  label        String
+  appliesTo    String // "BUYER" | "SPOUSE" | "REPRESENTATIVE"
+  stage        RequirementStage
+  required     Boolean          @default(true)
+  status       ReqItemStatus    @default(MISSING)
+  documentId   String?
+  verifiedById String?
+  verifiedAt   DateTime?
+
+  @@unique([clientId, code, appliesTo])
+}
+
+// ───────────── Documents & AI results (Module 1) ─────────────
+enum DocType {
+  LAND_TITLE
+  TAX_DECLARATION
+  RPT_RECEIPT
+  SELLER_ID
+  LICENSE_TO_SELL
+  PRC_ID
+  DHSUD_CERT
+  VALID_ID
+  BIRTH_CERT
+  MARRIAGE_CONTRACT
+  CENOMAR
+  ANNULMENT_DECREE
+  COE
+  PAYSLIP
+  PROOF_OF_BILLING
+  TIN_PROOF
+  ITR
+  AFS
+  BANK_STATEMENT
+  DTI_OR_BUSINESS_CLEARANCE
+  MAYORS_PERMIT
+  SPA
+  PASSPORT
+  SEAMANS_BOOK
+  PHOTO_2X2
+  PHOTO_1X1
+  ESAV
+  PAGIBIG_VIRTUAL_ACCOUNT
+  BUSINESS_PHOTO
+  PAYMENT_RECEIPT
+  TRANSMITTAL
+  UNKNOWN
+}
+
+enum DocOwner {
+  PROPERTY
+  PROJECT
+  CREDENTIAL
+  CLIENT
+  PAYMENT
+  TRANSMITTAL
+  SELLER_REQUEST
+}
+
+enum AiStatus {
+  QUEUED
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model Document {
+  id            String       @id @default(cuid())
+  firmId        String
+  ownerType     DocOwner
+  ownerId       String
+  declaredType  DocType? // what the uploader said it is
+  detectedType  DocType? // what the classifier thinks
+  storageKey    String
+  mimeType      String
+  sizeBytes     Int
+  sha256        String // duplicate detection
+  uploadedById  String
+  aiStatus      AiStatus     @default(QUEUED)
+  ocrText       String?
+  ocrConfidence Float? // 0–100 from Tesseract
+  extracted     Json? // field → { value, confidence }
+  flags         Json? // DocFlag[] (see §8.4)
+  reviewStatus  ReviewStatus @default(PENDING_AI)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  // Back-relations required by Prisma (no columns):
+  credential    Credential?
+  ltsForProject Project?     @relation("ProjectLTS")
+
+  @@index([firmId, ownerType, ownerId])
+  @@index([firmId, reviewStatus])
+}
+
+// ───────────── Commissions (Module 3) ─────────────
+enum TrancheTrigger {
+  ON_RESERVATION // first tranche right away (e.g. cash 20% advance)
+  FULL_PAYMENT // buyer fully paid (spot cash)
+  TCP_PERCENT_PAID // buyer has paid ≥ X% of TCP (in-house, deferred: 50)
+  DP_PERCENT_PAID // buyer has paid ≥ X% of required downpayment
+  DP_FULLY_PAID
+  LOAN_RELEASED // retention tranche
+  MONTHLY // Futura-style: one tranche per paid month
+}
+
+enum CommissionStatus {
+  WAITING
+  BLOCKED
+  AWAITING_TRANSMITTAL
+  READY_FOR_RELEASE
+  RELEASED
+}
+
+model CommissionSplitConfig {
+  // per firm, set by CompanyAdmin
+  id              String  @id @default(cuid())
+  firmId          String
+  handledBy       Role // SALES_MANAGER or SALES_PERSON
+  brokerPct       Decimal @db.Decimal(6, 3)
+  salesManagerPct Decimal @db.Decimal(6, 3)
+  salesPersonPct  Decimal @db.Decimal(6, 3) // must be 0 when handledBy = SALES_MANAGER
+
+  @@unique([firmId, handledBy])
+  // invariant: brokerPct + salesManagerPct + salesPersonPct = 100
+}
+
+model CommissionTemplate {
+  // per developer × payment method
+  id                  String                      @id @default(cuid())
+  firmId              String
+  developerId         String? // null = private sale template
+  developer           Developer?                  @relation(fields: [developerId], references: [id])
+  paymentMethod       PaymentMethod
+  grossRatePct        Decimal                     @db.Decimal(6, 3) // commission as % of TCP, e.g. 5.000
+  requiresTransmittal Boolean                     @default(true) // false for private sales
+  tranches            CommissionTemplateTranche[]
+
+  @@unique([firmId, developerId, paymentMethod])
+}
+
+model CommissionTemplateTranche {
+  id            String             @id @default(cuid())
+  templateId    String
+  template      CommissionTemplate @relation(fields: [templateId], references: [id])
+  sequence      Int
+  label         String // "Tranche 1", "Retention"
+  sharePct      Decimal            @db.Decimal(6, 3) // % of total commission; template sums to 100 (except MONTHLY)
+  trigger       TrancheTrigger
+  triggerValue  Decimal?           @db.Decimal(6, 3) // e.g. 50 for TCP_PERCENT_PAID
+  requiredStage RequirementStage // docs that must be VERIFIED/WAIVED
+}
+
+model Commission {
+  // one per client deal
+  id            String              @id @default(cuid())
+  firmId        String
+  clientId      String              @unique
+  templateId    String
+  grossAmount   Decimal             @db.Decimal(14, 2) // tcp × grossRatePct (snapshot)
+  splitSnapshot Json // percentages + userIds at creation time
+  tranches      CommissionTranche[]
+}
+
+model CommissionTranche {
+  id                    String             @id @default(cuid())
+  firmId                String
+  commissionId          String
+  commission            Commission         @relation(fields: [commissionId], references: [id])
+  sequence              Int
+  label                 String
+  amount                Decimal            @db.Decimal(14, 2)
+  status                CommissionStatus   @default(WAITING)
+  milestoneReachedAt    DateTime?
+  docsCompleteAt        DateTime?
+  transmittalDocumentId String?
+  transmittalAmount     Decimal?           @db.Decimal(14, 2)
+  awaitingSince         DateTime? // for aging
+  voucher               CommissionVoucher?
+
+  @@index([firmId, status])
+}
+
+model CommissionVoucher {
+  id                   String            @id @default(cuid())
+  firmId               String
+  trancheId            String            @unique
+  tranche              CommissionTranche @relation(fields: [trancheId], references: [id])
+  voucherNo            String // per firm sequence, e.g. ADV-2026-0001
+  lines                Json // [{ userId, role, grossShare, deductions:[{label, amount}], net }]
+  totalNet             Decimal           @db.Decimal(14, 2)
+  contentHash          String // sha256 of canonical voucher JSON
+  brokerSignedAt       DateTime?
+  brokerSignature      Json? // { userId, typedName, imageKey?, ip, userAgent, hash }
+  consultantSignatures Json? // one entry per payee consultant
+  releasedAt           DateTime?
+  createdAt            DateTime          @default(now())
+
+  @@unique([firmId, voucherNo])
+}
+
+// ───────────── Visits ─────────────
+enum VisitStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+  CANCELLED
+}
+
+model Visit {
+  id                String      @id @default(cuid())
+  firmId            String
+  propertyId        String
+  consultantId      String
+  inquiryId         String?
+  clientId          String?
+  scheduledAt       DateTime
+  status            VisitStatus @default(PENDING)
+  rescheduledFromId String?
+  declineReason     String?
+  decidedById       String?
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([firmId, scheduledAt])
+}
+
+// ───────────── Closing ─────────────
+model ClosingRecord {
+  id           String  @id @default(cuid())
+  firmId       String
+  clientId     String  @unique
+  sellingPrice Decimal @db.Decimal(14, 2)
+  computation  Json // see §11
+  checklist    Json // [{ code, label, done, doneAt, doneById }]
+}
+
+// ───────────── Ratings ─────────────
+model RatingToken {
+  // one-time link, since buyers have no accounts
+  id           String    @id @default(cuid())
+  firmId       String
+  clientId     String    @unique
+  consultantId String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  usedAt       DateTime?
+}
+
+model Rating {
+  id           String   @id @default(cuid())
+  consultantId String
+  clientId     String   @unique
+  stars        Int // 1–5
+  comment      String?
+  createdAt    DateTime @default(now())
+}
+
+// ───────────── Audit ─────────────
+model AuditLog {
+  id         String   @id @default(cuid())
+  firmId     String? // null = platform-level
+  actorId    String?
+  action     String // e.g. "LISTING_APPROVED", "VOUCHER_SIGNED"
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([firmId, createdAt])
+}

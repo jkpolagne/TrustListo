@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./**/node_modules/**)",
+      "Read(./**/dist/**)",
+      "Read(./**/build/**)",
+      "Read(./**/coverage/**)",
+      "Read(./**/.turbo/**)",
+      "Read(./**/pnpm-lock.yaml)",
+      "Read(./**/package-lock.json)",
+      "Read(./**/*.min.js)",
+      "Read(./**/*.map)",
+      "Read(./**/prisma/migrations/**/migration.sql)",
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/uploads/**)",
+      "Read(./**/minio-data/**)"
+    ]
+  }
+}
