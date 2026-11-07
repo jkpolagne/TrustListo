@@ -24,7 +24,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.0.1",
+    "express-rate-limit": "^8.7.3",
     "helmet": "^8.0.0",
+    "jose": "^6.2.15",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import type { HealthResponse } from '@trustlisto/shared';
 import { BrokerSeal } from '../../components/BrokerSeal';
 import { Logo } from '../../components/Logo';
@@ -45,10 +46,16 @@ export function Home() {
         <a href="/" aria-label="TrustListo home">
           <Logo className="h-12 sm:h-14" />
         </a>
-        <nav className="text-sm font-semibold">
-          <a href="#how" className="underline-offset-4 hover:underline">
+        <nav className="flex items-center gap-5 text-sm font-semibold">
+          <a href="#how" className="hidden underline-offset-4 hover:underline sm:inline">
             How listings are checked
           </a>
+          <Link
+            to="/login"
+            className="border-2 border-ink px-3 py-1.5 hover:bg-ink hover:text-paper"
+          >
+            Firm sign-in
+          </Link>
         </nav>
       </header>
 

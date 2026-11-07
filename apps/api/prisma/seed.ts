@@ -171,7 +171,9 @@ async function developerListing(opts: {
           ],
         },
         badges: {
-          create: [{ type: 'LTS_VERIFIED', grantedById: opts.brokerId, validUntil: opts.ltsExpiresAt }],
+          create: [
+            { type: 'LTS_VERIFIED', grantedById: opts.brokerId, validUntil: opts.ltsExpiresAt },
+          ],
         },
       },
     });
@@ -197,12 +199,56 @@ async function main() {
   const adv = await prisma.firm.create({
     data: { name: 'Advench Realty', slug: 'advench', address: 'Naga City, Camarines Sur' },
   });
-  await createUser({ firmId: adv.id, role: 'COMPANY_ADMIN', email: 'admin@advench.test', firstName: 'Andrea', lastName: 'Villanueva' });
-  const b1 = await createUser({ firmId: adv.id, role: 'BROKER', email: 'broker1@advench.test', firstName: 'Bernardo', lastName: 'Reyes', referralCode: 'BREYES' });
-  const b2 = await createUser({ firmId: adv.id, role: 'BROKER', email: 'broker2@advench.test', firstName: 'Beatriz', lastName: 'Santos', referralCode: 'BSANTOS' });
-  const sm1 = await createUser({ firmId: adv.id, role: 'SALES_MANAGER', email: 'sm1@advench.test', firstName: 'Marco', lastName: 'Dela Cruz', brokerId: b1.id, referralCode: 'MDCRUZ' });
-  const sm2 = await createUser({ firmId: adv.id, role: 'SALES_MANAGER', email: 'sm2@advench.test', firstName: 'Liza', lastName: 'Mendoza', brokerId: b1.id, referralCode: 'LMENDOZA' });
-  const sm3 = await createUser({ firmId: adv.id, role: 'SALES_MANAGER', email: 'sm3@advench.test', firstName: 'Ramon', lastName: 'Bautista', brokerId: b2.id, referralCode: 'RBAUTISTA' });
+  await createUser({
+    firmId: adv.id,
+    role: 'COMPANY_ADMIN',
+    email: 'admin@advench.test',
+    firstName: 'Andrea',
+    lastName: 'Villanueva',
+  });
+  const b1 = await createUser({
+    firmId: adv.id,
+    role: 'BROKER',
+    email: 'broker1@advench.test',
+    firstName: 'Bernardo',
+    lastName: 'Reyes',
+    referralCode: 'BREYES',
+  });
+  const b2 = await createUser({
+    firmId: adv.id,
+    role: 'BROKER',
+    email: 'broker2@advench.test',
+    firstName: 'Beatriz',
+    lastName: 'Santos',
+    referralCode: 'BSANTOS',
+  });
+  const sm1 = await createUser({
+    firmId: adv.id,
+    role: 'SALES_MANAGER',
+    email: 'sm1@advench.test',
+    firstName: 'Marco',
+    lastName: 'Dela Cruz',
+    brokerId: b1.id,
+    referralCode: 'MDCRUZ',
+  });
+  const sm2 = await createUser({
+    firmId: adv.id,
+    role: 'SALES_MANAGER',
+    email: 'sm2@advench.test',
+    firstName: 'Liza',
+    lastName: 'Mendoza',
+    brokerId: b1.id,
+    referralCode: 'LMENDOZA',
+  });
+  const sm3 = await createUser({
+    firmId: adv.id,
+    role: 'SALES_MANAGER',
+    email: 'sm3@advench.test',
+    firstName: 'Ramon',
+    lastName: 'Bautista',
+    brokerId: b2.id,
+    referralCode: 'RBAUTISTA',
+  });
   const sps = [];
   const spNames: [string, string, string][] = [
     ['Joy', 'Ocampo', sm1.id],
@@ -242,48 +288,155 @@ async function main() {
   ];
   for (const [i, sp] of sps.entries()) {
     const [status, days] = spStates[i]!;
-    await credential(adv.id, sp.id, 'DHSUD_REGISTRATION', status, days === null ? null : inDays(days), `DHSUD-R5-20${i + 1}`);
+    await credential(
+      adv.id,
+      sp.id,
+      'DHSUD_REGISTRATION',
+      status,
+      days === null ? null : inDays(days),
+      `DHSUD-R5-20${i + 1}`,
+    );
   }
 
   // Developers & projects (one LTS expiring within 60 days).
   await developerListing({
-    firmId: adv.id, brokerId: b1.id, developer: 'Vista Land (Camella)', project: 'Camella Naga',
-    location: 'Del Rosario, Naga City', barangay: 'Del Rosario', lat: 13.6105, lng: 123.2232,
-    ltsNumber: 'LTS-R5-2024-0101', ltsExpiresAt: inDays(500),
+    firmId: adv.id,
+    brokerId: b1.id,
+    developer: 'Vista Land (Camella)',
+    project: 'Camella Naga',
+    location: 'Del Rosario, Naga City',
+    barangay: 'Del Rosario',
+    lat: 13.6105,
+    lng: 123.2232,
+    ltsNumber: 'LTS-R5-2024-0101',
+    ltsExpiresAt: inDays(500),
     units: [
-      { title: 'Ella Model', type: 'HOUSE_AND_LOT', price: 2_150_000, lot: 88, floor: 45, bed: 2, bath: 1 },
-      { title: 'Freya Model', type: 'HOUSE_AND_LOT', price: 3_480_000, lot: 110, floor: 72, bed: 3, bath: 2 },
+      {
+        title: 'Ella Model',
+        type: 'HOUSE_AND_LOT',
+        price: 2_150_000,
+        lot: 88,
+        floor: 45,
+        bed: 2,
+        bath: 1,
+      },
+      {
+        title: 'Freya Model',
+        type: 'HOUSE_AND_LOT',
+        price: 3_480_000,
+        lot: 110,
+        floor: 72,
+        bed: 3,
+        bath: 2,
+      },
       { title: 'Residential Lot', type: 'LOT', price: 1_250_000, lot: 120 },
     ],
   });
   await developerListing({
-    firmId: adv.id, brokerId: b1.id, developer: 'St. Andrew', project: 'St. Andrew Homes Pacol',
-    location: 'Pacol, Naga City', barangay: 'Pacol', lat: 13.6466, lng: 123.2299,
-    ltsNumber: 'LTS-R5-2023-0222', ltsExpiresAt: inDays(320),
+    firmId: adv.id,
+    brokerId: b1.id,
+    developer: 'St. Andrew',
+    project: 'St. Andrew Homes Pacol',
+    location: 'Pacol, Naga City',
+    barangay: 'Pacol',
+    lat: 13.6466,
+    lng: 123.2299,
+    ltsNumber: 'LTS-R5-2023-0222',
+    ltsExpiresAt: inDays(320),
     units: [
-      { title: 'Townhouse A', type: 'TOWNHOUSE', price: 1_890_000, lot: 60, floor: 48, bed: 2, bath: 1 },
-      { title: 'Single Attached', type: 'HOUSE_AND_LOT', price: 2_650_000, lot: 96, floor: 56, bed: 3, bath: 1 },
+      {
+        title: 'Townhouse A',
+        type: 'TOWNHOUSE',
+        price: 1_890_000,
+        lot: 60,
+        floor: 48,
+        bed: 2,
+        bath: 1,
+      },
+      {
+        title: 'Single Attached',
+        type: 'HOUSE_AND_LOT',
+        price: 2_650_000,
+        lot: 96,
+        floor: 56,
+        bed: 3,
+        bath: 1,
+      },
       { title: 'Corner Lot', type: 'LOT', price: 1_420_000, lot: 140 },
     ],
   });
   await developerListing({
-    firmId: adv.id, brokerId: b2.id, developer: 'Parkview', project: 'Parkview Estates Cararayan',
-    location: 'Cararayan, Naga City', barangay: 'Cararayan', lat: 13.6151, lng: 123.2489,
-    ltsNumber: 'LTS-R5-2022-0333', ltsExpiresAt: inDays(45), // expiring within 60 days
+    firmId: adv.id,
+    brokerId: b2.id,
+    developer: 'Parkview',
+    project: 'Parkview Estates Cararayan',
+    location: 'Cararayan, Naga City',
+    barangay: 'Cararayan',
+    lat: 13.6151,
+    lng: 123.2489,
+    ltsNumber: 'LTS-R5-2022-0333',
+    ltsExpiresAt: inDays(45), // expiring within 60 days
     units: [
-      { title: 'Bungalow', type: 'HOUSE_AND_LOT', price: 2_380_000, lot: 100, floor: 52, bed: 2, bath: 1 },
-      { title: 'Two-Storey', type: 'HOUSE_AND_LOT', price: 3_950_000, lot: 120, floor: 90, bed: 4, bath: 2 },
+      {
+        title: 'Bungalow',
+        type: 'HOUSE_AND_LOT',
+        price: 2_380_000,
+        lot: 100,
+        floor: 52,
+        bed: 2,
+        bath: 1,
+      },
+      {
+        title: 'Two-Storey',
+        type: 'HOUSE_AND_LOT',
+        price: 3_950_000,
+        lot: 120,
+        floor: 90,
+        bed: 4,
+        bath: 2,
+      },
       { title: 'Inner Lot', type: 'LOT', price: 980_000, lot: 100 },
     ],
   });
   await developerListing({
-    firmId: adv.id, brokerId: b2.id, developer: 'Futura', project: 'Futura Homes Concepcion',
-    location: 'Concepcion Grande, Naga City', barangay: 'Concepcion Grande', lat: 13.6290, lng: 123.2105,
-    ltsNumber: 'LTS-R5-2025-0444', ltsExpiresAt: inDays(700),
+    firmId: adv.id,
+    brokerId: b2.id,
+    developer: 'Futura',
+    project: 'Futura Homes Concepcion',
+    location: 'Concepcion Grande, Naga City',
+    barangay: 'Concepcion Grande',
+    lat: 13.629,
+    lng: 123.2105,
+    ltsNumber: 'LTS-R5-2025-0444',
+    ltsExpiresAt: inDays(700),
     units: [
-      { title: 'Mila Townhouse', type: 'TOWNHOUSE', price: 1_650_000, lot: 54, floor: 40, bed: 2, bath: 1 },
-      { title: 'Shaira Duplex', type: 'HOUSE_AND_LOT', price: 2_250_000, lot: 75, floor: 50, bed: 2, bath: 1 },
-      { title: 'Studio Condo', type: 'CONDO', price: 1_480_000, lot: 0, floor: 24, bed: 1, bath: 1 },
+      {
+        title: 'Mila Townhouse',
+        type: 'TOWNHOUSE',
+        price: 1_650_000,
+        lot: 54,
+        floor: 40,
+        bed: 2,
+        bath: 1,
+      },
+      {
+        title: 'Shaira Duplex',
+        type: 'HOUSE_AND_LOT',
+        price: 2_250_000,
+        lot: 75,
+        floor: 50,
+        bed: 2,
+        bath: 1,
+      },
+      {
+        title: 'Studio Condo',
+        type: 'CONDO',
+        price: 1_480_000,
+        lot: 0,
+        floor: 24,
+        bed: 1,
+        bath: 1,
+      },
     ],
   });
 
@@ -291,22 +444,81 @@ async function main() {
   const bp = await prisma.firm.create({
     data: { name: 'Bicol Prime Realty', slug: 'bicol-prime', address: 'Naga City, Camarines Sur' },
   });
-  await createUser({ firmId: bp.id, role: 'COMPANY_ADMIN', email: 'admin@bicolprime.test', firstName: 'Teresa', lastName: 'Lim' });
-  const bpB = await createUser({ firmId: bp.id, role: 'BROKER', email: 'broker@bicolprime.test', firstName: 'Gilbert', lastName: 'Fernandez', referralCode: 'GFERNANDEZ' });
-  const bpSm = await createUser({ firmId: bp.id, role: 'SALES_MANAGER', email: 'sm@bicolprime.test', firstName: 'Diana', lastName: 'Castillo', brokerId: bpB.id, referralCode: 'DCASTILLO' });
-  const bpSp1 = await createUser({ firmId: bp.id, role: 'SALES_PERSON', email: 'sp1@bicolprime.test', firstName: 'Rico', lastName: 'Salazar', managerId: bpSm.id, referralCode: 'RSALAZAR' });
-  const bpSp2 = await createUser({ firmId: bp.id, role: 'SALES_PERSON', email: 'sp2@bicolprime.test', firstName: 'Mae', lastName: 'Pascual', managerId: bpSm.id, referralCode: 'MPASCUAL' });
+  await createUser({
+    firmId: bp.id,
+    role: 'COMPANY_ADMIN',
+    email: 'admin@bicolprime.test',
+    firstName: 'Teresa',
+    lastName: 'Lim',
+  });
+  const bpB = await createUser({
+    firmId: bp.id,
+    role: 'BROKER',
+    email: 'broker@bicolprime.test',
+    firstName: 'Gilbert',
+    lastName: 'Fernandez',
+    referralCode: 'GFERNANDEZ',
+  });
+  const bpSm = await createUser({
+    firmId: bp.id,
+    role: 'SALES_MANAGER',
+    email: 'sm@bicolprime.test',
+    firstName: 'Diana',
+    lastName: 'Castillo',
+    brokerId: bpB.id,
+    referralCode: 'DCASTILLO',
+  });
+  const bpSp1 = await createUser({
+    firmId: bp.id,
+    role: 'SALES_PERSON',
+    email: 'sp1@bicolprime.test',
+    firstName: 'Rico',
+    lastName: 'Salazar',
+    managerId: bpSm.id,
+    referralCode: 'RSALAZAR',
+  });
+  const bpSp2 = await createUser({
+    firmId: bp.id,
+    role: 'SALES_PERSON',
+    email: 'sp2@bicolprime.test',
+    firstName: 'Mae',
+    lastName: 'Pascual',
+    managerId: bpSm.id,
+    referralCode: 'MPASCUAL',
+  });
   await credential(bp.id, bpB.id, 'PRC_LICENSE', 'APPROVED', inDays(600), 'PRC-0034567');
   await credential(bp.id, bpSm.id, 'DHSUD_REGISTRATION', 'APPROVED', inDays(250), 'DHSUD-R5-3001');
   await credential(bp.id, bpSp1.id, 'DHSUD_REGISTRATION', 'APPROVED', inDays(180), 'DHSUD-R5-3002');
-  await credential(bp.id, bpSp2.id, 'DHSUD_REGISTRATION', 'READY_FOR_REVIEW', null, 'DHSUD-R5-3003');
+  await credential(
+    bp.id,
+    bpSp2.id,
+    'DHSUD_REGISTRATION',
+    'READY_FOR_REVIEW',
+    null,
+    'DHSUD-R5-3003',
+  );
 
   await developerListing({
-    firmId: bp.id, brokerId: bpB.id, developer: 'Bicol Highlands Land Inc.', project: 'Highlands Residences Panicuason',
-    location: 'Panicuason, Naga City', barangay: 'Panicuason', lat: 13.6581, lng: 123.2770,
-    ltsNumber: 'LTS-R5-2024-0555', ltsExpiresAt: inDays(450),
+    firmId: bp.id,
+    brokerId: bpB.id,
+    developer: 'Bicol Highlands Land Inc.',
+    project: 'Highlands Residences Panicuason',
+    location: 'Panicuason, Naga City',
+    barangay: 'Panicuason',
+    lat: 13.6581,
+    lng: 123.277,
+    ltsNumber: 'LTS-R5-2024-0555',
+    ltsExpiresAt: inDays(450),
     units: [
-      { title: 'Cabin House', type: 'HOUSE_AND_LOT', price: 2_780_000, lot: 150, floor: 60, bed: 2, bath: 1 },
+      {
+        title: 'Cabin House',
+        type: 'HOUSE_AND_LOT',
+        price: 2_780_000,
+        lot: 150,
+        floor: 60,
+        bed: 2,
+        bath: 1,
+      },
       { title: 'View Lot', type: 'LOT', price: 1_150_000, lot: 200 },
     ],
   });
@@ -315,8 +527,20 @@ async function main() {
   for (const firmId of [adv.id, bp.id]) {
     await prisma.commissionSplitConfig.createMany({
       data: [
-        { firmId, handledBy: 'SALES_PERSON', brokerPct: 20, salesManagerPct: 20, salesPersonPct: 60 },
-        { firmId, handledBy: 'SALES_MANAGER', brokerPct: 30, salesManagerPct: 70, salesPersonPct: 0 },
+        {
+          firmId,
+          handledBy: 'SALES_PERSON',
+          brokerPct: 20,
+          salesManagerPct: 20,
+          salesPersonPct: 60,
+        },
+        {
+          firmId,
+          handledBy: 'SALES_MANAGER',
+          brokerPct: 30,
+          salesManagerPct: 70,
+          salesPersonPct: 0,
+        },
       ],
     });
   }
@@ -326,7 +550,9 @@ async function main() {
     prisma.user.count(),
     prisma.property.count(),
   ]);
-  console.log(`Seeded ${firms} firms, ${users} users, ${props} live listings. Password: Password123!`);
+  console.log(
+    `Seeded ${firms} firms, ${users} users, ${props} live listings. Password: Password123!`,
+  );
 }
 
 main()
