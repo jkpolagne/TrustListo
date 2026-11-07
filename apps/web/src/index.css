@@ -1,1 +1,86 @@
+@import '@fontsource-variable/archivo/wdth.css';
 @import 'tailwindcss';
+
+/*
+  TrustListo tokens (from the logo).
+  Rule: gold only marks something a licensed broker verified. Everything else is black on white.
+*/
+@theme {
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #000000;
+  --color-paper: #ffffff;
+  --color-stone: #f3f3f1;
+  --color-graphite: #4a4a48;
+  --color-rule: #d9d8d4;
+  --color-bronze: #6e4a08; /* gold that is safe for text on white */
+  --color-gold: #e3ac24;
+  --color-gold-pale: #fbefc8;
+  --color-flag: #b42318;
+}
+
+@layer base {
+  html {
+    color: var(--color-ink);
+    background: var(--color-paper);
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-gold);
+    outline-offset: 3px;
+  }
+}
+
+@utility font-display {
+  font-stretch: 115%;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+@utility font-narrow {
+  font-stretch: 85%;
+}
+
+/* The one orchestrated moment: checks tick down the document, then the broker seal stamps. */
+@keyframes tick-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-4deg);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.96) rotate(-9deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+}
+.anim-tick {
+  opacity: 0;
+  animation: tick-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1.2) forwards;
+}
+.anim-stamp {
+  opacity: 0;
+  transform: rotate(-8deg);
+  animation: stamp 420ms cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-tick,
+  .anim-stamp {
+    animation: none;
+    opacity: 1;
+  }
+}
