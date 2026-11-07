@@ -1,11 +1,19 @@
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
+import { Avatar, ButtonLink, Card, CardHeader, EmptyState, StatCard } from '../../components/ui';
 import { useMe } from '../../lib/auth';
 import { useReviewQueue } from '../../lib/reviews';
 import { credentialState, fullName, useTeam, type TeamMember } from '../../lib/team';
 
 const greet = (name?: string) => (name ? `Good to see you, ${name}` : 'Overview');
+
+type Row = {
+  person: Pick<TeamMember, 'firstName' | 'lastName' | 'role'>;
+  c: TeamMember['credentials'][number];
+};
 
 /** Credentials grouped by what someone needs to do about them. */
 function credentialWork(people: TeamMember[]) {
@@ -16,39 +24,50 @@ function credentialWork(people: TeamMember[]) {
     review: rows.filter((r) => r.state === 'review' || r.state === 'attention'),
     expired: rows.filter((r) => r.state === 'expired'),
     reading: rows.filter((r) => r.state === 'reading'),
+    verified: rows.filter((r) => r.state === 'verified'),
   };
 }
 
-function WorkList({
-  title,
-  empty,
+function PersonList({
   rows,
+  empty,
+  linkTo,
 }: {
-  title: string;
+  rows: Row[];
   empty: string;
-  rows: { person: TeamMember; c: TeamMember['credentials'][number] }[];
+  linkTo?: (r: Row) => string;
 }) {
+  if (rows.length === 0) return <EmptyState>{empty}</EmptyState>;
   return (
-    <section className="max-w-3xl">
-      <h2 className="text-lg font-bold">
-        {title} <span className="font-normal text-graphite tabular-nums">({rows.length})</span>
-      </h2>
-      {rows.length === 0 ? (
-        <p className="mt-2 border-t-2 border-ink pt-3 text-graphite">{empty}</p>
-      ) : (
-        <ul className="mt-2 border-t-2 border-ink">
-          {rows.map(({ person, c }) => (
-            <li
-              key={c.id}
-              className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-3"
-            >
-              <span className="font-semibold">{fullName(person)}</span>
-              <CredentialBadge credential={c} />
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    <ul className="-mx-2 divide-y divide-line">
+      {rows.map((r) => {
+        const inner = (
+          <>
+            <Avatar first={r.person.firstName} last={r.person.lastName} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{fullName(r.person)}</p>
+              <p className="truncate text-xs text-muted">{ROLE_LABEL[r.person.role]}</p>
+            </div>
+            <CredentialBadge credential={r.c} />
+            {linkTo && <ChevronRight aria-hidden className="size-4 text-muted" />}
+          </>
+        );
+        return (
+          <li key={r.c.id}>
+            {linkTo ? (
+              <Link
+                to={linkTo(r)}
+                className="flex items-center gap-3 rounded-lg px-2 py-3 hover:bg-canvas"
+              >
+                {inner}
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3 px-2 py-3">{inner}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -56,7 +75,7 @@ export function AdminHome() {
   const { data: me } = useMe();
   const team = useTeam();
   const work = team.data ? credentialWork(team.data) : null;
-  const count = (role: TeamMember['role']) =>
+  const active = (role: TeamMember['role']) =>
     team.data?.filter((p) => p.role === role && p.isActive).length ?? 0;
 
   return (
@@ -64,29 +83,44 @@ export function AdminHome() {
       <PageHeader
         title={greet(me?.firstName)}
         intro={me?.firm ? `Here's what needs attention at ${me.firm.name}.` : undefined}
+        actions={<ButtonLink to="/admin/team/new">Add consultant</ButtonLink>}
       />
-      {team.data && (
-        <p className="mb-10 max-w-3xl text-lg">
-          {count('BROKER')} brokers, {count('SALES_MANAGER')} sales managers and{' '}
-          {count('SALES_PERSON')} salespersons are active.{' '}
-          <Link to="/admin/team" className="font-semibold underline underline-offset-4">
-            See the team
-          </Link>
-        </p>
-      )}
       {work && (
-        <div className="space-y-10">
-          <WorkList
-            title="Expired credentials"
-            empty="No expired credentials."
-            rows={work.expired}
-          />
-          <WorkList
-            title="Waiting for a broker"
-            empty="Nothing is waiting for a broker."
-            rows={work.review}
-          />
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Active consultants"
+              value={active('BROKER') + active('SALES_MANAGER') + active('SALES_PERSON')}
+              hint={`${active('BROKER')} brokers, ${active('SALES_MANAGER')} managers, ${active('SALES_PERSON')} sales`}
+            />
+            <StatCard label="Verified credentials" value={work.verified.length} tone="verified" />
+            <StatCard
+              label="Waiting for a broker"
+              value={work.review.length + work.reading.length}
+            />
+            <StatCard
+              label="Expired credentials"
+              value={work.expired.length}
+              tone={work.expired.length ? 'danger' : undefined}
+            />
+          </div>
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <Card>
+              <CardHeader
+                title="Expired credentials"
+                description="Upload a current one for each person."
+              />
+              <PersonList rows={work.expired} empty="No expired credentials." />
+            </Card>
+            <Card>
+              <CardHeader
+                title="Waiting for a broker"
+                description="A licensed broker approves these."
+              />
+              <PersonList rows={[...work.review, ...work.reading]} empty="Nothing is waiting." />
+            </Card>
+          </div>
+        </>
       )}
     </>
   );
@@ -96,7 +130,7 @@ export function BrokerHome() {
   const { data: me } = useMe();
   const queue = useReviewQueue();
   const team = useTeam();
-  const expired = team.data ? credentialWork(team.data).expired : [];
+  const work = team.data ? credentialWork(team.data) : null;
   const items = queue.data?.credentials ?? [];
   const ready = items.filter((c) => c.status !== 'PENDING_AI');
   const checking = items.length - ready.length;
@@ -107,37 +141,28 @@ export function BrokerHome() {
         title="Review queue"
         intro={`Credentials that need your decision${me?.firm ? ` at ${me.firm.name}` : ''}. Only a licensed broker can approve them.`}
       />
-      <div className="space-y-10">
-        <section className="max-w-3xl">
-          <h2 className="text-lg font-bold">
-            Ready for your review{' '}
-            <span className="font-normal tabular-nums text-graphite">({ready.length})</span>
-          </h2>
-          {ready.length === 0 ? (
-            <p className="mt-2 border-t-2 border-ink pt-3 text-graphite">Your queue is clear.</p>
-          ) : (
-            <ul className="mt-2 border-t-2 border-ink">
-              {ready.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    to={`/broker/reviews/credentials/${c.id}`}
-                    className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-3 hover:bg-stone"
-                  >
-                    <span className="font-semibold underline-offset-4">{fullName(c.user)}</span>
-                    <CredentialBadge credential={c} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {checking > 0 && (
-            <p className="mt-3 text-sm text-graphite">
-              {checking} more {checking === 1 ? 'is' : 'are'} still being checked and will appear
-              here.
-            </p>
-          )}
-        </section>
-        <WorkList title="Expired" empty="No expired credentials." rows={expired} />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Ready for review" value={ready.length} />
+        <StatCard label="Still being checked" value={checking} />
+        <StatCard
+          label="Expired credentials"
+          value={work?.expired.length ?? 0}
+          tone={work?.expired.length ? 'danger' : undefined}
+        />
+      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <Card>
+          <CardHeader title="Ready for your review" description="Oldest first." />
+          <PersonList
+            rows={ready.map((c) => ({ person: c.user, c }))}
+            empty="Your queue is clear."
+            linkTo={(r) => `/broker/reviews/credentials/${r.c.id}`}
+          />
+        </Card>
+        <Card>
+          <CardHeader title="Expired" />
+          <PersonList rows={work?.expired ?? []} empty="No expired credentials." />
+        </Card>
       </div>
     </>
   );
@@ -155,20 +180,28 @@ export function ManagerHome() {
         title={greet(me?.firstName)}
         intro={`You manage ${mine.length} salesperson${mine.length === 1 ? '' : 's'}.`}
       />
-      {team.data && (
-        <div className="space-y-10">
-          <WorkList
-            title="Team credentials that expired"
-            empty="None of your team's credentials have expired."
-            rows={work.expired}
-          />
-          <WorkList
-            title="Team credentials under review"
-            empty="Nothing from your team is under review."
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Team members" value={mine.length} />
+        <StatCard label="Verified" value={work.verified.length} tone="verified" />
+        <StatCard
+          label="Expired"
+          value={work.expired.length}
+          tone={work.expired.length ? 'danger' : undefined}
+        />
+      </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader title="Expired credentials" />
+          <PersonList rows={work.expired} empty="None of your team's credentials have expired." />
+        </Card>
+        <Card>
+          <CardHeader title="Under review" />
+          <PersonList
             rows={[...work.review, ...work.reading]}
+            empty="Nothing from your team is under review."
           />
-        </div>
-      )}
+        </Card>
+      </div>
     </>
   );
 }
@@ -184,35 +217,42 @@ export function SalespersonHome() {
         title={greet(me.firstName)}
         intro={me.firm ? `Salesperson at ${me.firm.name}.` : undefined}
       />
-      <section className="max-w-xl">
-        <h2 className="text-lg font-bold">Your credentials</h2>
-        <ul className="mt-2 border-t-2 border-ink">
-          {me.credentials.length === 0 && (
-            <li className="py-3 text-graphite">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Your credentials"
+            description={
+              verified
+                ? undefined
+                : 'Buyers see a verified badge once a broker approves a current credential.'
+            }
+          />
+          {me.credentials.length === 0 ? (
+            <EmptyState>
               None on file. Ask your company admin to upload your DHSUD registration.
-            </li>
+            </EmptyState>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {me.credentials.map((c) => (
+                <li key={c.id}>
+                  <CredentialBadge credential={c} />
+                </li>
+              ))}
+            </ul>
           )}
-          {me.credentials.map((c) => (
-            <li key={c.id} className="border-b border-rule py-3">
-              <CredentialBadge credential={c} />
-            </li>
-          ))}
-        </ul>
-        {!verified && (
-          <p className="mt-3 text-sm text-graphite">
-            Buyers see a verified badge on your profile once a broker approves a current credential.
-          </p>
+        </Card>
+        {me.referralCode && (
+          <Card>
+            <CardHeader
+              title="Your referral code"
+              description="Buyers who inquire with your code are assigned to you."
+            />
+            <p className="inline-block rounded-xl bg-canvas px-4 py-3 font-mono text-2xl font-bold tracking-wider select-all">
+              {me.referralCode}
+            </p>
+          </Card>
         )}
-      </section>
-      {me.referralCode && (
-        <section className="mt-10 max-w-xl">
-          <h2 className="text-lg font-bold">Your referral code</h2>
-          <p className="font-display mt-2 text-3xl tracking-wide">{me.referralCode}</p>
-          <p className="mt-1 text-sm text-graphite">
-            Buyers who inquire with your code are assigned to you.
-          </p>
-        </section>
-      )}
+      </div>
     </>
   );
 }

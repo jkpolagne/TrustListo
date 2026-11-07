@@ -2,7 +2,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
-import { ApiError, api } from '../../lib/api';
+import { Field, FormError, FormSuccess, PrimaryButton } from '../../components/Form';
+import { Avatar, Card, CardHeader } from '../../components/ui';
+import { api } from '../../lib/api';
 import { useMe } from '../../lib/auth';
 
 export function Account() {
@@ -25,82 +27,72 @@ export function Account() {
     change.mutate();
   }
 
-  const err = change.error instanceof ApiError ? change.error : null;
-  const fieldIssue =
-    err?.code === 'VALIDATION_FAILED' && Array.isArray(err.details)
-      ? (err.details[0] as { message?: string })?.message
-      : null;
-
   return (
     <>
       <PageHeader title="Account" />
-      <dl className="mb-12 grid max-w-xl grid-cols-[8rem_1fr] gap-y-2 border-t-2 border-ink pt-4">
-        <dt className="text-graphite">Name</dt>
-        <dd className="font-semibold">
-          {me.firstName} {me.lastName}
-        </dd>
-        <dt className="text-graphite">Email</dt>
-        <dd>{me.email}</dd>
-        <dt className="text-graphite">Role</dt>
-        <dd>{ROLE_LABEL[me.role]}</dd>
-        {me.firm && (
-          <>
-            <dt className="text-graphite">Firm</dt>
-            <dd>{me.firm.name}</dd>
-          </>
-        )}
-      </dl>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <div className="flex items-center gap-4">
+            <Avatar first={me.firstName} last={me.lastName} />
+            <div>
+              <p className="font-bold">
+                {me.firstName} {me.lastName}
+              </p>
+              <p className="text-sm text-muted">{me.email}</p>
+            </div>
+          </div>
+          <dl className="mt-6 grid grid-cols-[7rem_1fr] gap-y-3 border-t border-line pt-5 text-sm">
+            <dt className="text-muted">Role</dt>
+            <dd className="font-medium">{ROLE_LABEL[me.role]}</dd>
+            {me.firm && (
+              <>
+                <dt className="text-muted">Firm</dt>
+                <dd className="font-medium">{me.firm.name}</dd>
+              </>
+            )}
+            {me.referralCode && (
+              <>
+                <dt className="text-muted">Referral code</dt>
+                <dd className="font-mono font-semibold">{me.referralCode}</dd>
+              </>
+            )}
+          </dl>
+        </Card>
 
-      <h2 className="text-xl font-bold">Change password</h2>
-      <form onSubmit={submit} className="mt-4 max-w-sm space-y-4">
-        <div>
-          <label htmlFor="cur" className="mb-1.5 block text-sm font-semibold">
-            Current password
-          </label>
-          <input
-            id="cur"
-            type="password"
-            autoComplete="current-password"
-            className="input"
-            value={currentPassword}
-            onChange={(e) => setCurrent(e.target.value)}
+        <Card>
+          <CardHeader
+            title="Change password"
+            description="At least 10 characters, with a letter and a number."
           />
-        </div>
-        <div>
-          <label htmlFor="new" className="mb-1.5 block text-sm font-semibold">
-            New password
-          </label>
-          <input
-            id="new"
-            type="password"
-            autoComplete="new-password"
-            aria-describedby="new-hint"
-            className="input"
-            value={newPassword}
-            onChange={(e) => setNew(e.target.value)}
-          />
-          <p id="new-hint" className="mt-1 text-sm text-graphite">
-            At least 10 characters, with a letter and a number.
-          </p>
-        </div>
-        {change.isError && (
-          <p role="alert" className="border-l-4 border-flag bg-flag/5 px-3 py-2 text-sm text-flag">
-            {fieldIssue ?? change.error.message}
-          </p>
-        )}
-        {change.isSuccess && (
-          <p role="status" className="text-sm font-semibold">
-            Password changed.
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={change.isPending}
-          className="bg-ink px-5 py-3 font-semibold text-paper hover:bg-graphite disabled:opacity-60"
-        >
-          {change.isPending ? 'Changing…' : 'Change password'}
-        </button>
-      </form>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Current password" htmlFor="cur">
+              <input
+                id="cur"
+                type="password"
+                autoComplete="current-password"
+                className="input"
+                value={currentPassword}
+                onChange={(e) => setCurrent(e.target.value)}
+              />
+            </Field>
+            <Field label="New password" htmlFor="new">
+              <input
+                id="new"
+                type="password"
+                autoComplete="new-password"
+                className="input"
+                value={newPassword}
+                onChange={(e) => setNew(e.target.value)}
+              />
+            </Field>
+            <FormError error={change.error} />
+            {change.isSuccess && <FormSuccess>Password changed.</FormSuccess>}
+            <PrimaryButton pending={change.isPending}>
+              {change.isPending ? 'Changing…' : 'Change password'}
+            </PrimaryButton>
+          </form>
+        </Card>
+      </div>
     </>
   );
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ApiError } from '../lib/api';
+import { Button } from './ui';
 
 export function Field({
   label,
@@ -18,7 +19,7 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && <p className="mt-1 text-sm text-graphite">{hint}</p>}
+      {hint && <p className="mt-1.5 text-xs text-muted">{hint}</p>}
     </div>
   );
 }
@@ -28,7 +29,7 @@ export function errorText(error: unknown): string | null {
   if (!error) return null;
   if (error instanceof ApiError) {
     if (error.code === 'VALIDATION_FAILED' && Array.isArray(error.details)) {
-      const first = error.details[0] as { message?: string; path?: string[] } | undefined;
+      const first = error.details[0] as { message?: string } | undefined;
       if (first?.message) return first.message;
     }
     return error.message;
@@ -40,8 +41,16 @@ export function FormError({ error }: { error: unknown }) {
   const text = errorText(error);
   if (!text) return null;
   return (
-    <p role="alert" className="border-l-4 border-flag bg-flag/5 px-3 py-2 text-sm text-flag">
+    <p role="alert" className="rounded-lg bg-flag-pale px-3 py-2.5 text-sm font-medium text-flag">
       {text}
+    </p>
+  );
+}
+
+export function FormSuccess({ children }: { children: ReactNode }) {
+  return (
+    <p role="status" className="rounded-lg bg-canvas px-3 py-2.5 text-sm font-medium">
+      {children}
     </p>
   );
 }
@@ -58,13 +67,8 @@ export function PrimaryButton({
   onClick?: () => void;
 }) {
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={pending}
-      className="bg-ink px-5 py-3 font-semibold text-paper hover:bg-graphite disabled:opacity-60"
-    >
+    <Button type={type} onClick={onClick} disabled={pending}>
       {children}
-    </button>
+    </Button>
   );
 }

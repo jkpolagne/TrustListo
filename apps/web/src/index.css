@@ -17,6 +17,12 @@
   --color-gold: #e3ac24;
   --color-gold-pale: #fbefc8;
   --color-flag: #b42318;
+  --color-flag-pale: #fdeceb;
+
+  /* Office (dashboard) surfaces */
+  --color-canvas: #f6f6f4; /* app background */
+  --color-line: #e7e6e2; /* card and table borders */
+  --color-muted: #6b6a66; /* secondary text */
 }
 
 @layer base {
@@ -29,7 +35,8 @@
   }
   :focus-visible {
     outline: 3px solid var(--color-gold);
-    outline-offset: 3px;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
   }
 }
 
@@ -41,13 +48,25 @@
 
 @utility input {
   width: 100%;
-  border: 2px solid var(--color-ink);
+  border: 1px solid var(--color-rule);
+  border-radius: 0.625rem;
   background: var(--color-paper);
-  padding: 0.7rem 0.85rem;
-  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.95rem;
+  transition:
+    border-color 120ms,
+    box-shadow 120ms;
+  &:hover {
+    border-color: #bdbcb7;
+  }
   &:focus-visible {
-    outline: 3px solid var(--color-gold);
-    outline-offset: 0;
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: 0 0 0 3px rgb(227 172 36 / 0.35);
+  }
+  &:read-only {
+    background: var(--color-canvas);
+    color: var(--color-muted);
   }
 }
 

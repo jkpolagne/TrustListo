@@ -1,13 +1,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ExternalLink } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
 import { Field, FormError, PrimaryButton } from '../../components/Form';
+import { Avatar, Badge, Button, ButtonLink, Card, CardHeader } from '../../components/ui';
 import { api } from '../../lib/api';
 import { useCredentialReview, useDocumentUrl, type CredentialReview } from '../../lib/reviews';
 import { CREDENTIAL_NAME, fullName } from '../../lib/team';
+
+const back = { to: '/broker', label: 'Review queue' };
 
 export function ReviewCredential() {
   const { id = '' } = useParams();
@@ -18,10 +22,10 @@ export function ReviewCredential() {
   if (review.isError || !review.data) {
     return (
       <>
-        <PageHeader title="Credential not found" />
-        <Link to="/broker" className="font-semibold underline underline-offset-4">
+        <PageHeader title="Credential not found" back={back} />
+        <ButtonLink to="/broker" variant="secondary">
           Back to the review queue
-        </Link>
+        </ButtonLink>
       </>
     );
   }
@@ -30,60 +34,89 @@ export function ReviewCredential() {
 
   return (
     <>
-      <Link to="/broker" className="text-sm font-semibold underline-offset-4 hover:underline">
-        Review queue
-      </Link>
-      <PageHeader
-        title={`${CREDENTIAL_NAME[c.type]} for ${fullName(c.user)}`}
-        intro={`${ROLE_LABEL[c.user.role]}, ${c.user.email}`}
-      />
+      <PageHeader title={`Review ${CREDENTIAL_NAME[c.type]}`} back={back} />
 
-      <div className="grid gap-10 xl:grid-cols-[minmax(0,1.3fr)_minmax(22rem,1fr)]">
-        {/* Document */}
-        <section aria-label="Document" className="min-w-0">
-          {!c.document && (
-            <p className="text-graphite">No file was uploaded with this credential.</p>
-          )}
-          {docUrl.data &&
-            (docUrl.data.mimeType === 'application/pdf' ? (
-              <iframe
-                src={docUrl.data.url}
-                title="Credential document"
-                className="h-[75vh] w-full border-2 border-ink"
-              />
-            ) : (
-              <a href={docUrl.data.url} target="_blank" rel="noreferrer" title="Open full size">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,1fr)]">
+        <Card padded={false} className="min-w-0 self-start overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <p className="text-sm font-semibold">Uploaded document</p>
+            {docUrl.data && (
+              <a
+                href={docUrl.data.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-muted hover:bg-canvas hover:text-ink"
+              >
+                Open full size <ExternalLink aria-hidden className="size-3.5" />
+              </a>
+            )}
+          </div>
+          <div className="bg-canvas p-4">
+            {!c.document && (
+              <p className="py-10 text-center text-sm text-muted">
+                No file was uploaded with this credential.
+              </p>
+            )}
+            {c.document && !docUrl.data && (
+              <div className="grid h-80 place-items-center rounded-lg bg-line/40 text-sm text-muted motion-safe:animate-pulse">
+                {docUrl.isError
+                  ? "The document couldn't be loaded. Reload the page."
+                  : 'Loading document…'}
+              </div>
+            )}
+            {docUrl.data &&
+              (docUrl.data.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={docUrl.data.url}
+                  title="Credential document"
+                  className="h-[70vh] w-full rounded-lg bg-paper"
+                />
+              ) : (
                 <img
                   src={docUrl.data.url}
                   alt={`${CREDENTIAL_NAME[c.type]} uploaded for ${fullName(c.user)}`}
-                  className="w-full border-2 border-ink"
+                  className="mx-auto max-h-[70vh] rounded-lg shadow-sm"
                 />
-              </a>
-            ))}
-          {docUrl.data && (
-            <a
-              href={docUrl.data.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-block text-sm font-semibold underline-offset-4 hover:underline"
-            >
-              Open full size
-            </a>
-          )}
-        </section>
+              ))}
+          </div>
+        </Card>
 
-        {/* Decision */}
-        <section aria-label="Decision" className="space-y-8">
+        <div className="space-y-6">
+          <Card>
+            <div className="flex items-center gap-3">
+              <Avatar first={c.user.firstName} last={c.user.lastName} />
+              <div className="min-w-0">
+                <p className="font-bold">{fullName(c.user)}</p>
+                <p className="truncate text-sm text-muted">
+                  {ROLE_LABEL[c.user.role]}, {c.user.email}
+                </p>
+              </div>
+            </div>
+            <dl className="mt-5 grid grid-cols-[8rem_1fr] gap-y-2 border-t border-line pt-4 text-sm">
+              <dt className="text-muted">Credential</dt>
+              <dd className="font-medium">{CREDENTIAL_NAME[c.type]}</dd>
+              <dt className="text-muted">Number entered</dt>
+              <dd className="font-mono font-medium">{c.numberEntered}</dd>
+              <dt className="text-muted">Status</dt>
+              <dd>
+                <CredentialBadge credential={c} showName={false} />
+              </dd>
+            </dl>
+          </Card>
+
           <AutomaticCheck review={c} />
           {decided ? (
-            <div className="border-t-2 border-ink pt-4">
-              <CredentialBadge credential={c} />
-              {c.rejectReason && <p className="mt-2 text-sm">Reason: {c.rejectReason}</p>}
-            </div>
+            c.rejectReason && (
+              <Card>
+                <p className="text-sm">
+                  <span className="font-semibold">Reason:</span> {c.rejectReason}
+                </p>
+              </Card>
+            )
           ) : (
             <Decide review={c} />
           )}
-        </section>
+        </div>
       </div>
     </>
   );
@@ -93,42 +126,52 @@ function AutomaticCheck({ review }: { review: CredentialReview }) {
   const flags = review.document?.flags ?? [];
   const pending = review.status === 'PENDING_AI';
   return (
-    <div className="border-t-2 border-ink pt-4">
-      <h2 className="font-bold">Automatic check</h2>
-      {pending && <p className="mt-1 text-graphite">Still checking this file…</p>}
-      {!pending && flags.length === 0 && <p className="mt-1 text-graphite">No problems found.</p>}
+    <Card>
+      <CardHeader
+        title="Automatic check"
+        action={
+          pending ? (
+            <Badge tone="info">Checking</Badge>
+          ) : flags.length ? (
+            <Badge tone="danger">
+              {flags.length} issue{flags.length > 1 ? 's' : ''}
+            </Badge>
+          ) : (
+            <Badge>No issues</Badge>
+          )
+        }
+      />
       {flags.length > 0 && (
-        <ul className="mt-2 space-y-2">
+        <ul className="mb-4 space-y-2">
           {flags.map((f, i) => (
             <li
               key={i}
-              className={`border-l-4 pl-3 ${f.severity === 'BLOCKER' ? 'border-flag' : 'border-ink'}`}
+              className={`rounded-lg px-3 py-2.5 text-sm ${f.severity === 'BLOCKER' ? 'bg-flag-pale text-flag' : 'bg-canvas'}`}
             >
-              <span
-                className={`text-sm font-semibold ${f.severity === 'BLOCKER' ? 'text-flag' : ''}`}
-              >
+              <span className="font-semibold">
                 {f.severity === 'BLOCKER'
-                  ? 'Blocking issue'
+                  ? 'Blocking issue: '
                   : f.severity === 'WARNING'
-                    ? 'Check this'
-                    : 'Note'}
+                    ? 'Check this: '
+                    : 'Note: '}
               </span>
-              <p className="text-sm">{f.message}</p>
+              {f.message}
             </li>
           ))}
         </ul>
       )}
-      <p className="mt-3 text-sm text-graphite">
+      <p className="text-sm text-muted">
         The automatic check doesn't read text from the document yet. Compare the name, number and
         expiry date with the file yourself.
       </p>
-    </div>
+    </Card>
   );
 }
 
 function Decide({ review }: { review: CredentialReview }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [number, setNumber] = useState(review.numberEntered);
   const [expiresAt, setExpiresAt] = useState('');
   const [note, setNote] = useState('');
@@ -159,87 +202,103 @@ function Decide({ review }: { review: CredentialReview }) {
   const disabled = review.status === 'PENDING_AI';
 
   return (
-    <>
-      <form
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault();
-          approve.mutate();
-        }}
-        className="space-y-5 border-2 border-ink p-5"
+    <Card>
+      <div
+        className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-canvas p-1"
+        role="tablist"
+        aria-label="Decision"
       >
-        <h2 className="font-bold">Approve</h2>
-        <Field
-          label="Number on the document"
-          htmlFor="num"
-          hint="Correct it if the admin typed it wrong."
+        {(['approve', 'reject'] as const).map((m) => (
+          <button
+            key={m}
+            role="tab"
+            aria-selected={mode === m}
+            onClick={() => setMode(m)}
+            className={`rounded-lg py-2 text-sm font-semibold transition-colors ${
+              mode === m ? 'bg-paper shadow-sm' : 'text-muted hover:text-ink'
+            }`}
+          >
+            {m === 'approve' ? 'Approve' : 'Reject'}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'approve' ? (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            approve.mutate();
+          }}
+          className="space-y-4"
         >
-          <input
-            id="num"
-            className="input"
-            required
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-          />
-        </Field>
-        <Field label="Valid until" htmlFor="exp" hint="As printed on the document.">
-          <input
-            id="exp"
-            type="date"
-            className="input"
-            required
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-          />
-        </Field>
-        {hasBlocker && (
-          <Field label="Why approve despite the blocking issue?" htmlFor="note">
-            <textarea
-              id="note"
+          <Field
+            label="Number on the document"
+            htmlFor="num"
+            hint="Correct it if the admin typed it wrong."
+          >
+            <input
+              id="num"
               className="input"
-              rows={3}
               required
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
             />
           </Field>
-        )}
-        <FormError error={approve.error} />
-        <PrimaryButton pending={approve.isPending || disabled}>
-          {approve.isPending ? 'Approving…' : 'Approve credential'}
-        </PrimaryButton>
-      </form>
-
-      <form
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault();
-          reject.mutate();
-        }}
-        className="space-y-4"
-      >
-        <h2 className="font-bold">Reject</h2>
-        <Field
-          label="Reason"
-          htmlFor="reason"
-          hint="The company admin sees this so they can fix it."
+          <Field label="Valid until" htmlFor="exp" hint="As printed on the document.">
+            <input
+              id="exp"
+              type="date"
+              className="input"
+              required
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
+          </Field>
+          {hasBlocker && (
+            <Field label="Why approve despite the blocking issue?" htmlFor="note">
+              <textarea
+                id="note"
+                className="input"
+                rows={3}
+                required
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </Field>
+          )}
+          <FormError error={approve.error} />
+          <PrimaryButton pending={approve.isPending || disabled}>
+            {approve.isPending ? 'Approving…' : 'Approve credential'}
+          </PrimaryButton>
+        </form>
+      ) : (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            reject.mutate();
+          }}
+          className="space-y-4"
         >
-          <textarea
-            id="reason"
-            className="input"
-            rows={3}
-            required
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </Field>
-        <FormError error={reject.error} />
-        <button
-          type="submit"
-          disabled={reject.isPending || disabled}
-          className="border-2 border-flag px-5 py-2.5 font-semibold text-flag hover:bg-flag hover:text-paper disabled:opacity-60"
-        >
-          {reject.isPending ? 'Rejecting…' : 'Reject credential'}
-        </button>
-      </form>
-    </>
+          <Field
+            label="Reason"
+            htmlFor="reason"
+            hint="The company admin sees this so they can fix it."
+          >
+            <textarea
+              id="reason"
+              className="input"
+              rows={4}
+              required
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Field>
+          <FormError error={reject.error} />
+          <Button type="submit" variant="danger" disabled={reject.isPending || disabled}>
+            {reject.isPending ? 'Rejecting…' : 'Reject credential'}
+          </Button>
+        </form>
+      )}
+    </Card>
   );
 }

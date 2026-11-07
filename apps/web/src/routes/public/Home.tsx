@@ -52,7 +52,7 @@ export function Home() {
           </a>
           <Link
             to="/login"
-            className="border-2 border-ink px-3 py-1.5 hover:bg-ink hover:text-paper"
+            className="rounded-lg border border-rule px-3.5 py-2 transition-colors hover:border-ink hover:bg-ink hover:text-paper"
           >
             Firm sign-in
           </Link>
@@ -74,7 +74,7 @@ export function Home() {
             <div className="mt-9 flex flex-wrap gap-3">
               <a
                 href="#how"
-                className="inline-flex items-center bg-ink px-6 py-3.5 font-semibold text-paper hover:bg-graphite"
+                className="inline-flex items-center rounded-xl bg-ink px-6 py-3.5 font-semibold text-paper transition-colors hover:bg-[#262624]"
               >
                 See how listings are checked
               </a>

@@ -1,40 +1,43 @@
 import { CREDENTIAL_NAME, credentialState, type Credential } from '../lib/team';
+import { Badge } from './ui';
 
 const fmt = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
 
 /**
  * Gold appears only for a credential a broker approved and that hasn't expired.
- * Everything else is plain text or red, so gold keeps its meaning.
+ * Everything else is gray or red, so gold keeps its meaning.
  */
-export function CredentialBadge({ credential }: { credential: Credential }) {
+export function CredentialBadge({
+  credential,
+  showName = true,
+}: {
+  credential: Credential;
+  showName?: boolean;
+}) {
   const state = credentialState(credential);
-  const name = CREDENTIAL_NAME[credential.type];
+  const name = showName ? `${CREDENTIAL_NAME[credential.type]} ` : '';
   const exp = credential.expiresAt ? fmt.format(new Date(credential.expiresAt)) : null;
 
   switch (state) {
     case 'verified':
       return (
-        <span
-          className="inline-flex items-center gap-1.5 text-sm font-semibold"
-          title={exp ? `Valid until ${exp}` : undefined}
-        >
-          <span aria-hidden className="size-2.5 rounded-full bg-gold ring-2 ring-ink" />
-          {name} verified
+        <span title={exp ? `Valid until ${exp}` : undefined}>
+          <Badge tone="verified">{name}verified</Badge>
         </span>
       );
     case 'expired':
       return (
-        <span className="text-sm font-semibold text-flag">
-          {name} expired {exp}
-        </span>
+        <Badge tone="danger">
+          {name}expired {exp}
+        </Badge>
       );
     case 'review':
-      return <span className="text-sm text-graphite">{name} waiting for broker review</span>;
+      return <Badge>{name}waiting for broker</Badge>;
     case 'reading':
-      return <span className="text-sm text-graphite">{name} being read</span>;
+      return <Badge tone="info">{name}being checked</Badge>;
     case 'attention':
-      return <span className="text-sm font-semibold text-flag">{name} flagged for review</span>;
+      return <Badge tone="danger">{name}flagged</Badge>;
     case 'rejected':
-      return <span className="text-sm font-semibold text-flag">{name} rejected</span>;
+      return <Badge tone="danger">{name}rejected</Badge>;
   }
 }

@@ -1,29 +1,42 @@
-import { useState } from 'react';
+import {
+  Building2,
+  ClipboardCheck,
+  History,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Settings,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { ROLE_LABEL, type Role } from '@trustlisto/shared';
 import { useMe, useSignOut } from '../lib/auth';
 import { Logo } from './Logo';
+import { Avatar } from './ui';
 
-type NavItem = { to: string; label: string; end?: boolean };
+type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean };
 
 // Only screens that exist. Later milestones add listings, leads, clients, commissions.
 export const NAV: Record<Role, NavItem[]> = {
-  SUPER_ADMIN: [{ to: '/superadmin', label: 'Firms', end: true }],
+  SUPER_ADMIN: [{ to: '/superadmin', label: 'Firms', icon: Building2, end: true }],
   COMPANY_ADMIN: [
-    { to: '/admin', label: 'Overview', end: true },
-    { to: '/admin/team', label: 'Team' },
-    { to: '/admin/activity', label: 'Activity log' },
+    { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
+    { to: '/admin/team', label: 'Team', icon: Users },
+    { to: '/admin/activity', label: 'Activity log', icon: History },
   ],
   BROKER: [
-    { to: '/broker', label: 'Review queue', end: true },
-    { to: '/broker/team', label: 'Team' },
-    { to: '/broker/activity', label: 'Activity log' },
+    { to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true },
+    { to: '/broker/team', label: 'Team', icon: Users },
+    { to: '/broker/activity', label: 'Activity log', icon: History },
   ],
   SALES_MANAGER: [
-    { to: '/manager', label: 'Overview', end: true },
-    { to: '/manager/team', label: 'My team' },
+    { to: '/manager', label: 'Overview', icon: LayoutDashboard, end: true },
+    { to: '/manager/team', label: 'My team', icon: Users },
   ],
-  SALES_PERSON: [{ to: '/salesperson', label: 'Overview', end: true }],
+  SALES_PERSON: [{ to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true }],
 };
 
 export function AppShell() {
@@ -33,91 +46,139 @@ export function AppShell() {
   const [open, setOpen] = useState(false);
   if (!me) return null;
 
-  const items = [...NAV[me.role], { to: '/account', label: 'Account' }];
+  const items: NavItem[] = [...NAV[me.role], { to: '/account', label: 'Account', icon: Settings }];
 
   async function handleSignOut() {
     await signOut.mutateAsync();
     navigate('/login', { replace: true });
   }
 
-  const nav = (
-    <nav aria-label="Main" className="flex flex-col gap-1">
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={() => setOpen(false)}
-          className={({ isActive }) =>
-            `px-3 py-2.5 font-semibold ${isActive ? 'bg-ink text-paper' : 'hover:bg-stone'}`
-          }
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      <div className="px-3 pt-1">
+        <Link to="/" aria-label="TrustListo home">
+          <Logo className="h-10" />
+        </Link>
+      </div>
+      <div className="mx-1 mt-6 rounded-xl bg-canvas px-3 py-2.5">
+        <p className="text-xs font-medium text-muted">Workspace</p>
+        <p className="truncate text-sm font-bold">{me.firm?.name ?? 'TrustListo platform'}</p>
+      </div>
+
+      <nav aria-label="Main" className="mt-5 flex flex-1 flex-col gap-0.5">
+        {items.map(({ to, label, icon: Icon, end }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={end}
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                isActive ? 'bg-ink text-paper' : 'text-graphite hover:bg-canvas hover:text-ink'
+              }`
+            }
+          >
+            <Icon aria-hidden className="size-[18px]" strokeWidth={2} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="mt-4 flex items-center gap-3 border-t border-line px-1 pt-4">
+        <Avatar first={me.firstName} last={me.lastName} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">
+            {me.firstName} {me.lastName}
+          </p>
+          <p className="truncate text-xs text-muted">{ROLE_LABEL[me.role]}</p>
+        </div>
+        <button
+          onClick={handleSignOut}
+          aria-label="Sign out"
+          title="Sign out"
+          className="grid size-8 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
         >
-          {item.label}
-        </NavLink>
-      ))}
-    </nav>
+          <LogOut aria-hidden className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <div className="min-h-screen bg-paper lg:grid lg:grid-cols-[16rem_1fr]">
+    <div className="min-h-screen bg-canvas">
       {/* Desktop sidebar */}
-      <aside className="hidden border-r-2 border-ink lg:flex lg:min-h-screen lg:flex-col lg:p-5">
-        <Link to="/" aria-label="TrustListo home">
-          <Logo className="h-11" />
-        </Link>
-        <div className="mt-8 border-y border-rule py-4">
-          <p className="font-bold leading-tight">{me.firm?.name ?? 'TrustListo platform'}</p>
-          <p className="mt-0.5 text-sm text-graphite">
-            {me.firstName} {me.lastName}
-            <br />
-            {ROLE_LABEL[me.role]}
-          </p>
-        </div>
-        <div className="mt-4 flex-1">{nav}</div>
-        <button
-          onClick={handleSignOut}
-          className="self-start px-3 py-2 text-sm font-semibold underline-offset-4 hover:underline"
-        >
-          Sign out
-        </button>
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-line bg-paper p-4 lg:block">
+        {sidebar}
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="flex items-center justify-between border-b-2 border-ink px-4 py-3 lg:hidden">
-        <Logo className="h-9" />
+      {/* Mobile top bar + drawer */}
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-paper px-4 py-3 lg:hidden">
+        <Logo className="h-8" />
         <button
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="border-2 border-ink px-3 py-1.5 text-sm font-semibold"
+          onClick={() => setOpen(true)}
+          aria-label="Open menu"
+          className="grid size-10 place-items-center rounded-lg hover:bg-canvas"
         >
-          {open ? 'Close' : 'Menu'}
+          <Menu aria-hidden className="size-5" />
         </button>
       </header>
       {open && (
-        <div className="border-b-2 border-ink px-4 py-4 lg:hidden">
-          <p className="mb-3 text-sm text-graphite">
-            {me.firstName} {me.lastName}, {ROLE_LABEL[me.role]}
-            {me.firm && ` at ${me.firm.name}`}
-          </p>
-          {nav}
-          <button onClick={handleSignOut} className="mt-3 px-3 py-2 text-sm font-semibold">
-            Sign out
-          </button>
+        <div className="fixed inset-0 z-30 lg:hidden">
+          <button
+            aria-label="Close menu"
+            className="absolute inset-0 bg-ink/30"
+            onClick={() => setOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 w-72 bg-paper p-4 shadow-xl">
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Close menu"
+              className="absolute top-3 right-3 grid size-9 place-items-center rounded-lg hover:bg-canvas"
+            >
+              <X aria-hidden className="size-5" />
+            </button>
+            {sidebar}
+          </aside>
         </div>
       )}
 
-      <main className="min-w-0 px-5 py-8 sm:px-8 lg:px-12 lg:py-12">
-        <Outlet />
+      <main className="min-w-0 px-4 py-6 sm:px-8 lg:ml-64 lg:px-10 lg:py-8">
+        <div className="mx-auto max-w-6xl">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
 }
 
-export function PageHeader({ title, intro }: { title: string; intro?: string }) {
+export function PageHeader({
+  title,
+  intro,
+  actions,
+  back,
+}: {
+  title: string;
+  intro?: string;
+  actions?: ReactNode;
+  back?: { to: string; label: string };
+}) {
   return (
-    <header className="mb-8 max-w-3xl">
-      <h1 className="font-display text-[clamp(1.9rem,3.2vw,2.6rem)] leading-tight">{title}</h1>
-      {intro && <p className="mt-2 leading-relaxed text-graphite">{intro}</p>}
+    <header className="mb-6">
+      {back && (
+        <Link
+          to={back.to}
+          className="mb-2 inline-block text-sm font-semibold text-muted hover:text-ink"
+        >
+          ‹ {back.label}
+        </Link>
+      )}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-2xl">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]">{title}</h1>
+          {intro && <p className="mt-1 text-sm leading-relaxed text-muted">{intro}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      </div>
     </header>
   );
 }

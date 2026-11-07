@@ -1,10 +1,20 @@
 import { useMutation } from '@tanstack/react-query';
+import { Upload } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
-import { Field, FormError, PrimaryButton } from '../../components/Form';
+import { Field, FormError, FormSuccess, PrimaryButton } from '../../components/Form';
+import {
+  Avatar,
+  Badge,
+  Button,
+  ButtonLink,
+  Card,
+  CardHeader,
+  EmptyState,
+} from '../../components/ui';
 import { api } from '../../lib/api';
 import {
   CREDENTIAL_NAME,
@@ -17,6 +27,7 @@ import {
 } from '../../lib/team';
 
 const date = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
+const back = { to: '/admin/team', label: 'Team' };
 
 export function ConsultantDetail() {
   const { id = '' } = useParams();
@@ -26,10 +37,10 @@ export function ConsultantDetail() {
   if (member.isError || !member.data) {
     return (
       <>
-        <PageHeader title="Consultant not found" />
-        <Link to="/admin/team" className="font-semibold underline underline-offset-4">
+        <PageHeader title="Consultant not found" back={back} />
+        <ButtonLink to="/admin/team" variant="secondary">
           Back to team
-        </Link>
+        </ButtonLink>
       </>
     );
   }
@@ -37,15 +48,27 @@ export function ConsultantDetail() {
 
   return (
     <>
-      <Link to="/admin/team" className="text-sm font-semibold underline-offset-4 hover:underline">
-        Team
-      </Link>
-      <PageHeader
-        title={fullName(m)}
-        intro={`${ROLE_LABEL[m.role]}${m.isActive ? '' : ', deactivated'}. Referral code ${m.referralCode ?? 'none'}.`}
-      />
-      <div className="grid max-w-5xl gap-14 lg:grid-cols-2">
-        <div className="space-y-12">
+      <PageHeader title={fullName(m)} back={back} />
+      <Card className="mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar first={m.firstName} last={m.lastName} />
+          <div className="flex-1">
+            <p className="flex flex-wrap items-center gap-2 font-bold">
+              {ROLE_LABEL[m.role]}
+              {m.isActive ? <Badge>Active</Badge> : <Badge tone="danger">Deactivated</Badge>}
+            </p>
+            <p className="text-sm text-muted">{m.email}</p>
+          </div>
+          {m.referralCode && (
+            <div className="text-right">
+              <p className="text-xs text-muted">Referral code</p>
+              <p className="font-mono font-semibold">{m.referralCode}</p>
+            </div>
+          )}
+        </div>
+      </Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
           <Details member={m} />
           <ActiveSwitch member={m} />
         </div>
@@ -96,10 +119,10 @@ function Details({ member }: { member: TeamMember }) {
   }
 
   return (
-    <section>
-      <h2 className="text-xl font-bold">Details</h2>
-      <form onSubmit={submit} className="mt-4 space-y-5">
-        <div className="grid gap-5 sm:grid-cols-2">
+    <Card>
+      <CardHeader title="Details" />
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="First name" htmlFor="firstName">
             <input
               id="firstName"
@@ -120,7 +143,7 @@ function Details({ member }: { member: TeamMember }) {
           </Field>
         </div>
         <Field label="Email" htmlFor="email" hint="Email can't be changed here.">
-          <input id="email" className="input bg-stone" value={member.email} readOnly />
+          <input id="email" className="input" value={member.email} readOnly />
         </Field>
         <Field label="Mobile number" htmlFor="phone">
           <input
@@ -152,16 +175,12 @@ function Details({ member }: { member: TeamMember }) {
           </Field>
         )}
         <FormError error={save.error} />
-        {save.isSuccess && (
-          <p role="status" className="text-sm font-semibold">
-            Saved.
-          </p>
-        )}
+        {save.isSuccess && <FormSuccess>Saved.</FormSuccess>}
         <PrimaryButton pending={save.isPending}>
           {save.isPending ? 'Saving…' : 'Save changes'}
         </PrimaryButton>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -174,28 +193,28 @@ function ActiveSwitch({ member }: { member: TeamMember }) {
   });
 
   return (
-    <section className="border-t border-rule pt-6">
-      <h2 className="text-xl font-bold">{member.isActive ? 'Deactivate' : 'Reactivate'}</h2>
-      <p className="mt-2 max-w-md text-graphite">
-        {member.isActive
-          ? `${member.firstName} won't be able to sign in, and is removed from buyer-facing pickers. Their records stay.`
-          : `${member.firstName} will be able to sign in again.`}
-      </p>
-      <div className="mt-4 space-y-3">
+    <Card>
+      <CardHeader
+        title={member.isActive ? 'Deactivate' : 'Reactivate'}
+        description={
+          member.isActive
+            ? `${member.firstName} won't be able to sign in, and is removed from buyer-facing pickers. Their records stay.`
+            : `${member.firstName} will be able to sign in again.`
+        }
+      />
+      <div className="space-y-3">
         <FormError error={toggle.error} />
-        <button
+        <Button
+          variant={member.isActive ? 'danger' : 'secondary'}
+          disabled={toggle.isPending}
           onClick={() => {
             if (!member.isActive || confirm(`Deactivate ${fullName(member)}?`)) toggle.mutate();
           }}
-          disabled={toggle.isPending}
-          className={`border-2 px-5 py-2.5 font-semibold disabled:opacity-60 ${
-            member.isActive ? 'border-flag text-flag hover:bg-flag hover:text-paper' : 'border-ink'
-          }`}
         >
           {member.isActive ? `Deactivate ${member.firstName}` : `Reactivate ${member.firstName}`}
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -229,73 +248,85 @@ function Credentials({ member }: { member: TeamMember }) {
   }
 
   return (
-    <section>
-      <h2 className="text-xl font-bold">Credentials</h2>
-      <ul className="mt-3 border-t-2 border-ink">
-        {member.credentials.length === 0 && (
-          <li className="py-3 text-graphite">None uploaded yet.</li>
-        )}
-        {member.credentials.map((c) => (
-          <li key={c.id} className="border-b border-rule py-3">
-            <CredentialBadge credential={c} />
-            <p className="mt-0.5 text-sm text-graphite">
-              No. {c.numberEntered}
-              {c.createdAt && `, uploaded ${date.format(new Date(c.createdAt))}`}
-            </p>
-            {c.status === 'REJECTED' && c.rejectReason && (
-              <p className="mt-1 text-sm">
-                <span className="font-semibold">Broker's reason:</span> {c.rejectReason}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <form onSubmit={submit} className="mt-8 space-y-5 border-2 border-ink p-5">
-        <h3 className="font-bold">Upload a credential</h3>
-        <Field label="Type" htmlFor="ctype">
-          <select
-            id="ctype"
-            className="input"
-            value={type}
-            onChange={(e) => setType(e.target.value as Credential['type'])}
-          >
-            {(['PRC_LICENSE', 'DHSUD_REGISTRATION'] as const).map((t) => (
-              <option key={t} value={t}>
-                {CREDENTIAL_NAME[t]}
-              </option>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader title="Credentials" description="Newest first." />
+        {member.credentials.length === 0 ? (
+          <EmptyState>None uploaded yet.</EmptyState>
+        ) : (
+          <ul className="divide-y divide-line">
+            {member.credentials.map((c) => (
+              <li key={c.id} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">{CREDENTIAL_NAME[c.type]}</p>
+                  <CredentialBadge credential={c} showName={false} />
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  No. {c.numberEntered}
+                  {c.createdAt && `, uploaded ${date.format(new Date(c.createdAt))}`}
+                </p>
+                {c.status === 'REJECTED' && c.rejectReason && (
+                  <p className="mt-2 rounded-lg bg-flag-pale px-3 py-2 text-sm text-flag">
+                    Broker's reason: {c.rejectReason}
+                  </p>
+                )}
+              </li>
             ))}
-          </select>
-        </Field>
-        <Field label="Number on the document" htmlFor="cnum">
-          <input
-            id="cnum"
-            className="input"
-            required
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-          />
-        </Field>
-        <Field label="Scan or photo" htmlFor="cfile" hint="PDF, JPG, PNG or WebP, up to 10 MB.">
-          <input
-            id="cfile"
-            ref={fileRef}
-            type="file"
-            required
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            className="block w-full text-sm file:mr-3 file:border-2 file:border-ink file:bg-paper file:px-3 file:py-1.5 file:font-semibold"
-          />
-        </Field>
-        <FormError error={upload.error} />
-        {upload.isSuccess && (
-          <p role="status" className="text-sm font-semibold">
-            Uploaded. It's checked automatically, then goes to a broker for approval.
-          </p>
+          </ul>
         )}
-        <PrimaryButton pending={upload.isPending}>
-          {upload.isPending ? 'Uploading…' : 'Upload credential'}
-        </PrimaryButton>
-      </form>
-    </section>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Upload a credential"
+          description="It's checked automatically, then a broker approves it."
+        />
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Type" htmlFor="ctype">
+              <select
+                id="ctype"
+                className="input"
+                value={type}
+                onChange={(e) => setType(e.target.value as Credential['type'])}
+              >
+                {(['PRC_LICENSE', 'DHSUD_REGISTRATION'] as const).map((t) => (
+                  <option key={t} value={t}>
+                    {CREDENTIAL_NAME[t]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Number on the document" htmlFor="cnum">
+              <input
+                id="cnum"
+                className="input"
+                required
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Scan or photo" htmlFor="cfile" hint="PDF, JPG, PNG or WebP, up to 10 MB.">
+            <input
+              id="cfile"
+              ref={fileRef}
+              type="file"
+              required
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="block w-full rounded-lg border border-dashed border-rule bg-canvas p-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-paper"
+            />
+          </Field>
+          <FormError error={upload.error} />
+          {upload.isSuccess && (
+            <FormSuccess>Uploaded. It will appear in the broker's queue shortly.</FormSuccess>
+          )}
+          <PrimaryButton pending={upload.isPending}>
+            <Upload aria-hidden className="size-4" />
+            {upload.isPending ? 'Uploading…' : 'Upload credential'}
+          </PrimaryButton>
+        </form>
+      </Card>
+    </div>
   );
 }

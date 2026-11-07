@@ -1,7 +1,9 @@
+import { ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
-import { Link } from 'react-router-dom';
+import { Avatar, Badge, ButtonLink, Card, CardHeader } from '../../components/ui';
 import { useMe } from '../../lib/auth';
 import { fullName, useTeam, type TeamMember } from '../../lib/team';
 
@@ -10,14 +12,27 @@ export function Team({ title = 'Team' }: { title?: string }) {
   const team = useTeam();
   const isAdmin = useMe().data?.role === 'COMPANY_ADMIN';
 
-  if (team.isPending) return <PageHeader title={title} />;
-  if (team.isError) return <PageHeader title={title} intro={team.error.message} />;
+  const header = (
+    <PageHeader
+      title={title}
+      intro="Each salesperson reports to a sales manager, and each sales manager to a broker."
+      actions={isAdmin && <ButtonLink to="/admin/team/new">Add consultant</ButtonLink>}
+    />
+  );
+  if (team.isPending) return header;
+  if (team.isError)
+    return (
+      <>
+        {header}
+        <p className="text-flag">{team.error.message}</p>
+      </>
+    );
 
   const people = team.data;
   const ids = new Set(people.map((p) => p.id));
   const admins = people.filter((p) => p.role === 'COMPANY_ADMIN');
   const brokers = people.filter((p) => p.role === 'BROKER');
-  const managersOf = (brokerId: string | null) =>
+  const managersOf = (brokerId: string) =>
     people.filter((p) => p.role === 'SALES_MANAGER' && p.brokerId === brokerId);
   // Managers whose broker isn't visible to this viewer (e.g. a manager viewing their own team).
   const topManagers = people.filter(
@@ -28,74 +43,76 @@ export function Team({ title = 'Team' }: { title?: string }) {
 
   return (
     <>
-      <PageHeader
-        title={title}
-        intro="Each salesperson reports to a sales manager, and each sales manager to a broker."
-      />
-      {isAdmin && (
-        <Link
-          to="/admin/team/new"
-          className="mb-10 inline-block bg-ink px-5 py-3 font-semibold text-paper hover:bg-graphite"
-        >
-          Add a consultant
-        </Link>
-      )}
+      {header}
+      <div className="space-y-6">
+        {brokers.map((b) => {
+          const managers = managersOf(b.id);
+          const size = managers.reduce((n, m) => n + 1 + salesOf(m.id).length, 0);
+          return (
+            <Card key={b.id} padded={false}>
+              <div className="border-b border-line px-5 py-4 sm:px-6">
+                <PersonRow person={b} isAdmin={isAdmin} />
+              </div>
+              <div className="px-3 py-2 sm:px-4">
+                <p className="px-2 pt-2 pb-1 text-xs font-medium text-muted">
+                  {size} {size === 1 ? 'person reports' : 'people report'} to {b.firstName}
+                </p>
+                <ManagerGroups managers={managers} salesOf={salesOf} isAdmin={isAdmin} />
+              </div>
+            </Card>
+          );
+        })}
 
-      {admins.length > 0 && (
-        <section className="mb-10 max-w-4xl">
-          <h2 className="mb-2 text-lg font-bold">Company admins</h2>
-          <ul className="border-t-2 border-ink">
-            {admins.map((a) => (
-              <PersonRow key={a.id} person={a} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <ul className="max-w-4xl space-y-10">
-        {brokers.map((b) => (
-          <li key={b.id}>
-            <ul className="border-t-2 border-ink">
-              <PersonRow person={b} strong />
-            </ul>
-            <ManagerList managers={managersOf(b.id)} salesOf={salesOf} />
-          </li>
-        ))}
         {topManagers.length > 0 && (
-          <li>
-            <ManagerList managers={topManagers} salesOf={salesOf} flush />
-          </li>
+          <Card padded={false}>
+            <div className="px-3 py-2 sm:px-4">
+              <ManagerGroups managers={topManagers} salesOf={salesOf} isAdmin={isAdmin} />
+            </div>
+          </Card>
         )}
-      </ul>
+
+        {admins.length > 0 && (
+          <Card>
+            <CardHeader title="Company admins" />
+            <ul className="divide-y divide-line">
+              {admins.map((a) => (
+                <li key={a.id} className="py-2">
+                  <PersonRow person={a} isAdmin={false} />
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
     </>
   );
 }
 
-function ManagerList({
+function ManagerGroups({
   managers,
   salesOf,
-  flush = false,
+  isAdmin,
 }: {
   managers: TeamMember[];
   salesOf: (id: string) => TeamMember[];
-  flush?: boolean;
+  isAdmin: boolean;
 }) {
-  if (managers.length === 0) return null;
+  if (managers.length === 0) {
+    return <p className="px-2 py-3 text-sm text-muted">No sales managers yet.</p>;
+  }
   return (
-    <ul
-      className={
-        flush ? 'border-t-2 border-ink' : 'ml-4 border-l-2 border-ink pl-4 sm:ml-6 sm:pl-6'
-      }
-    >
+    <ul className="divide-y divide-line">
       {managers.map((m) => (
-        <li key={m.id}>
-          <ul>
-            <PersonRow person={m} strong />
-          </ul>
+        <li key={m.id} className="py-1">
+          <div className="rounded-lg px-2 py-2">
+            <PersonRow person={m} isAdmin={isAdmin} />
+          </div>
           {salesOf(m.id).length > 0 && (
-            <ul className="ml-4 border-l border-rule pl-4 sm:ml-6 sm:pl-6">
+            <ul className="mb-2 ml-6 border-l-2 border-line pl-4 sm:ml-7">
               {salesOf(m.id).map((s) => (
-                <PersonRow key={s.id} person={s} />
+                <li key={s.id} className="rounded-lg px-2 py-2">
+                  <PersonRow person={s} isAdmin={isAdmin} small />
+                </li>
               ))}
             </ul>
           )}
@@ -105,35 +122,53 @@ function ManagerList({
   );
 }
 
-function PersonRow({ person, strong = false }: { person: TeamMember; strong?: boolean }) {
-  const isAdmin = useMe().data?.role === 'COMPANY_ADMIN';
-  return (
-    <li className="grid gap-1 border-b border-rule py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6">
-      <div>
-        <p className={strong ? 'font-bold' : 'font-semibold'}>
-          {isAdmin && person.role !== 'COMPANY_ADMIN' ? (
-            <Link to={`/admin/team/${person.id}`} className="underline-offset-4 hover:underline">
-              {fullName(person)}
-            </Link>
-          ) : (
-            fullName(person)
-          )}
-          {!person.isActive && (
-            <span className="ml-2 text-sm font-normal text-flag">Deactivated</span>
-          )}
+function PersonRow({
+  person,
+  isAdmin,
+  small = false,
+}: {
+  person: TeamMember;
+  isAdmin: boolean;
+  small?: boolean;
+}) {
+  const linked = isAdmin && person.role !== 'COMPANY_ADMIN';
+  const body = (
+    <>
+      <Avatar first={person.firstName} last={person.lastName} size={small ? 'sm' : 'md'} />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+          {fullName(person)}
+          {!person.isActive && <Badge tone="danger">Deactivated</Badge>}
         </p>
-        <p className="text-sm text-graphite">
+        <p className="truncate text-xs text-muted">
           {ROLE_LABEL[person.role]}, {person.email}
         </p>
       </div>
-      <div className="flex flex-col gap-0.5 sm:items-end">
+      <div className="hidden flex-wrap justify-end gap-1.5 sm:flex">
         {person.credentials.length === 0 && person.role !== 'COMPANY_ADMIN' && (
-          <span className="text-sm text-graphite">No credential on file</span>
+          <Badge>No credential</Badge>
         )}
-        {person.credentials.map((c) => (
+        {latestPerType(person.credentials).map((c) => (
           <CredentialBadge key={c.id} credential={c} />
         ))}
       </div>
-    </li>
+      {linked && <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />}
+    </>
   );
+  return linked ? (
+    <Link
+      to={`/admin/team/${person.id}`}
+      className="-m-2 flex items-center gap-3 rounded-lg p-2 hover:bg-canvas"
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className="flex items-center gap-3">{body}</div>
+  );
+}
+
+/** Show only the newest credential of each type in lists; history lives on the detail page. */
+function latestPerType(creds: TeamMember['credentials']) {
+  const seen = new Set<string>();
+  return creds.filter((c) => (seen.has(c.type) ? false : (seen.add(c.type), true)));
 }

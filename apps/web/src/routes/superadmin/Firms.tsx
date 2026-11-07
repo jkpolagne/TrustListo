@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/AppShell';
+import { Badge, Card, StatCard } from '../../components/ui';
 import { api } from '../../lib/api';
 
 interface FirmRow {
@@ -19,6 +20,8 @@ export function Firms() {
     queryKey: ['admin', 'firms'],
     queryFn: () => api<{ data: FirmRow[] }>('/admin/firms').then((r) => r.data),
   });
+  const rows = firms.data ?? [];
+  const sum = (k: 'userCount' | 'liveListingCount') => rows.reduce((n, f) => n + f[k], 0);
 
   return (
     <>
@@ -28,36 +31,51 @@ export function Firms() {
       />
       {firms.isError && <p className="text-flag">{firms.error.message}</p>}
       {firms.data && (
-        <div className="max-w-4xl overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="border-b-2 border-ink text-sm">
-              <tr>
-                <th className="py-2 pr-4 font-semibold">Firm</th>
-                <th className="py-2 pr-4 font-semibold">Status</th>
-                <th className="py-2 pr-4 text-right font-semibold">Users</th>
-                <th className="py-2 pr-4 text-right font-semibold">Live listings</th>
-                <th className="py-2 font-semibold">Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {firms.data.map((f) => (
-                <tr key={f.id} className="border-b border-rule">
-                  <td className="py-3 pr-4 font-semibold">{f.name}</td>
-                  <td
-                    className={`py-3 pr-4 ${f.status === 'SUSPENDED' ? 'font-semibold text-flag' : ''}`}
-                  >
-                    {f.status === 'ACTIVE' ? 'Active' : 'Suspended'}
-                  </td>
-                  <td className="py-3 pr-4 text-right tabular-nums">{f.userCount}</td>
-                  <td className="py-3 pr-4 text-right tabular-nums">{f.liveListingCount}</td>
-                  <td className="py-3 tabular-nums text-graphite">
-                    {joined.format(new Date(f.createdAt))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard
+              label="Firms"
+              value={rows.length}
+              hint={`${rows.filter((f) => f.status === 'ACTIVE').length} active`}
+            />
+            <StatCard label="Users" value={sum('userCount')} />
+            <StatCard label="Live listings" value={sum('liveListingCount')} />
+          </div>
+          <Card padded={false} className="mt-6 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-canvas text-xs text-muted">
+                  <tr>
+                    <th className="px-5 py-3 font-semibold">Firm</th>
+                    <th className="px-5 py-3 font-semibold">Status</th>
+                    <th className="px-5 py-3 text-right font-semibold">Users</th>
+                    <th className="px-5 py-3 text-right font-semibold">Live listings</th>
+                    <th className="px-5 py-3 text-right font-semibold">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {rows.map((f) => (
+                    <tr key={f.id} className="hover:bg-canvas/60">
+                      <td className="px-5 py-3.5 font-semibold">{f.name}</td>
+                      <td className="px-5 py-3.5">
+                        {f.status === 'ACTIVE' ? (
+                          <Badge>Active</Badge>
+                        ) : (
+                          <Badge tone="danger">Suspended</Badge>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums">{f.userCount}</td>
+                      <td className="px-5 py-3.5 text-right tabular-nums">{f.liveListingCount}</td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-muted">
+                        {joined.format(new Date(f.createdAt))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
       )}
     </>
   );

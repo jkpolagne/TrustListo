@@ -16,7 +16,7 @@ const SEAL_DELAY_MS = 500 + checks.length * 380 + 150;
 export function VerifiedDocument() {
   return (
     <figure className="relative mx-auto w-full max-w-md">
-      <div className="relative border-2 border-ink bg-paper px-6 pt-6 pb-32 shadow-[10px_10px_0_0_#000] sm:px-8">
+      <div className="relative rounded-3xl border border-line bg-paper px-6 pt-6 pb-32 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.25)] sm:px-8">
         <div className="flex items-baseline justify-between gap-4 border-b-2 border-ink pb-3">
           <p className="font-display text-lg leading-tight">Transfer Certificate of Title</p>
           <p className="shrink-0 text-sm tabular-nums text-graphite">No. T-48213</p>
