@@ -160,7 +160,11 @@ export function PropertyDetail() {
                 </p>
               )}
             </div>
-            <LoanCalculator price={Number(p.price)} />
+            <LoanCalculator
+              price={Number(p.price)}
+              defaults={p.loanDefaults}
+              firmName={p.firm?.name}
+            />
           </aside>
         </div>
       </div>

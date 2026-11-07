@@ -37,6 +37,13 @@ model Firm {
   users     User[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  // Loan calculator defaults shown to buyers on this firm's listings (SPEC §7.4).
+  // Added 2026-11-07 with the team's approval.
+  loanRatePct        Decimal @default(6.25) @db.Decimal(6, 3)
+  loanTermYears      Int     @default(30)
+  loanDownpaymentPct Decimal @default(10) @db.Decimal(6, 3)
+  loanIncomeRatioPct Decimal @default(35) @db.Decimal(6, 3)
 }
 
 model User {

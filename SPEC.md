@@ -224,6 +224,11 @@ model Firm {
   users      User[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+  // Loan calculator defaults (§7.4), edited by CompanyAdmin. Added 2026-11-07.
+  loanRatePct        Decimal @default(6.25) @db.Decimal(6,3)
+  loanTermYears      Int     @default(30)
+  loanDownpaymentPct Decimal @default(10)   @db.Decimal(6,3)
+  loanIncomeRatioPct Decimal @default(35)   @db.Decimal(6,3)
 }
 
 model User {
@@ -747,6 +752,8 @@ Two modes, both pure functions in `packages/shared`:
 - CRUD developers → projects → units (Property with `source = DEVELOPER`).
 - Upload License to Sell on the project → Module 1 processes → broker approves → `LTS_VERIFIED` badge on all units of that project, `validUntil = ltsExpiresAt`.
 - A developer unit can go `LIVE` only if its project's LTS is `APPROVED` and not expired.
+- **Decided 2026-11-07:** the CompanyAdmin publishes developer units directly once the project's LTS is broker-approved; individual units don't need a separate broker approval. (Individual seller listings still go through broker review, §7.6.)
+- **Decided 2026-11-07:** loan calculator defaults (rate, term, downpayment %, income ratio) are stored on `Firm` and edited by the CompanyAdmin (§6 `Firm.loan*` fields).
 - Nightly job (or on-read check for the prototype): LTS expired → listing auto-moves to `SUSPENDED`, badge hidden; warn at 30 days before expiry on admin dashboard.
 
 ### 7.6 Individual seller listing flow

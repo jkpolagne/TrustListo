@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import argon2 from 'argon2';
 import sharp from 'sharp';
 import { ensureBucket, objectKey, putObject } from '../src/lib/storage';
+import { attachSeedPhotos } from './seedPhotos';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: NODE_ENV=production');
@@ -258,6 +259,7 @@ async function developerListing(opts: {
     });
     // Spread units slightly around the project pin.
     await setGeom('Property', p.id, opts.lat + i * 0.0006, opts.lng + i * 0.0006);
+    await attachSeedPhotos(prisma, opts.firmId, p.id, u.type);
   }
 }
 

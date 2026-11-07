@@ -70,14 +70,30 @@ function Row({ label, value, strong = false }: { label: string; value: string; s
  * Two estimates (SPEC §7.4): the monthly payment for this price, and the price range a budget
  * can carry. Uses the shared, tested formulas. Never presented as a loan approval.
  */
-export function LoanCalculator({ price }: { price: number }) {
+export interface LoanAssumptions {
+  annualRatePct: number;
+  years: number;
+  downpaymentPct: number;
+  incomeRatioPct: number;
+}
+
+export function LoanCalculator({
+  price,
+  defaults = LOAN_DEFAULTS,
+  firmName,
+}: {
+  price: number;
+  /** The listing firm's assumptions (editable in its settings). */
+  defaults?: LoanAssumptions;
+  firmName?: string;
+}) {
   const [mode, setMode] = useState<'payment' | 'afford'>('payment');
   const [listPrice, setListPrice] = useState(price);
-  const [dp, setDp] = useState<number>(LOAN_DEFAULTS.downpaymentPct);
-  const [rate, setRate] = useState<number>(LOAN_DEFAULTS.annualRatePct);
-  const [years, setYears] = useState<number>(LOAN_DEFAULTS.years);
+  const [dp, setDp] = useState<number>(defaults.downpaymentPct);
+  const [rate, setRate] = useState<number>(defaults.annualRatePct);
+  const [years, setYears] = useState<number>(defaults.years);
   const [income, setIncome] = useState(40000);
-  const [ratio, setRatio] = useState<number>(LOAN_DEFAULTS.incomeRatioPct);
+  const [ratio, setRatio] = useState<number>(defaults.incomeRatioPct);
 
   const pay = estimateFromPrice(listPrice, dp, rate, years);
   const budget = budgetFromIncome(income, ratio);
@@ -182,9 +198,10 @@ export function LoanCalculator({ price }: { price: number }) {
       </dl>
 
       <p className="mt-4 text-xs leading-relaxed text-muted">
-        Estimate only, not a loan approval. Defaults assume {LOAN_DEFAULTS.annualRatePct}% a year
-        over {LOAN_DEFAULTS.years} years with {LOAN_DEFAULTS.downpaymentPct}% down. Your bank,
-        Pag-IBIG or the developer sets the actual terms.
+        Estimate only, not a loan approval. Starting values are{' '}
+        {firmName ? `${firmName}’s` : 'typical'} assumptions: {defaults.annualRatePct}% a year over{' '}
+        {defaults.years} years with {defaults.downpaymentPct}% down. Your bank, Pag-IBIG or the
+        developer sets the actual terms.
       </p>
     </div>
   );

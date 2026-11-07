@@ -54,6 +54,12 @@ export function PublicLayout({ children, wide = false }: { children: ReactNode; 
               Badges reflect documents reviewed by a firm's licensed broker, not a government
               database check.
             </p>
+            <Link
+              to="/credits"
+              className="mt-3 inline-block text-xs text-paper/60 underline underline-offset-2 hover:text-paper"
+            >
+              Photo credits
+            </Link>
           </div>
           {import.meta.env.DEV && <SystemStatus />}
         </div>

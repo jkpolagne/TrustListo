@@ -212,9 +212,18 @@ publicRouter.get('/properties/:slug', async (req, res) => {
     },
   });
   if (!property) throw notFoundError();
-  const [points, firms] = await Promise.all([
+  const [points, firms, loan] = await Promise.all([
     getPoints('Property', [property.id]),
     firmNames([property.firmId]),
+    prisma.firm.findUniqueOrThrow({
+      where: { id: property.firmId },
+      select: {
+        loanRatePct: true,
+        loanTermYears: true,
+        loanDownpaymentPct: true,
+        loanIncomeRatioPct: true,
+      },
+    }),
   ]);
   const { photos, firmId, ...rest } = property;
   res.json({
@@ -222,6 +231,13 @@ publicRouter.get('/properties/:slug', async (req, res) => {
     firm: firms.get(firmId) ?? null,
     photos: photos.map((p) => photoUrl(p.id)),
     location: points.get(property.id) ?? null,
+    // The listing firm's calculator assumptions (SPEC §7.4), shown to the buyer.
+    loanDefaults: {
+      annualRatePct: Number(loan.loanRatePct),
+      years: loan.loanTermYears,
+      downpaymentPct: Number(loan.loanDownpaymentPct),
+      incomeRatioPct: Number(loan.loanIncomeRatioPct),
+    },
   });
 });
 

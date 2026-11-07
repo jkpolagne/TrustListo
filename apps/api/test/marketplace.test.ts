@@ -271,3 +271,47 @@ describe('firm catalog', () => {
       .expect(204);
   });
 });
+
+describe('firm loan defaults (SPEC §7.4)', () => {
+  it('admin edits them, they are audited, and buyers see them on that firm’s listings', async () => {
+    const admin = await signIn('admin@bicolprime.test');
+    const res = await admin.agent
+      .put('/api/v1/settings/firm')
+      .set(admin.csrfHeader)
+      .send({ loanRatePct: 7.5, loanTermYears: 20, loanDownpaymentPct: 15, loanIncomeRatioPct: 30 })
+      .expect(200);
+    expect(res.body).toMatchObject({ loanRatePct: 7.5, loanTermYears: 20 });
+
+    const list = await pub('/properties?q=Highlands').expect(200);
+    const detail = await pub(`/properties/${list.body.data[0].slug}`).expect(200);
+    expect(detail.body.loanDefaults).toEqual({
+      annualRatePct: 7.5,
+      years: 20,
+      downpaymentPct: 15,
+      incomeRatioPct: 30,
+    });
+
+    const other = await pub('/properties?q=Camella').expect(200);
+    const advDetail = await pub(`/properties/${other.body.data[0].slug}`).expect(200);
+    expect(advDetail.body.loanDefaults.annualRatePct).toBe(6.25);
+
+    const row = await prisma.auditLog.findFirst({ where: { action: 'FIRM_SETTINGS_UPDATED' } });
+    expect(row?.after).toMatchObject({ loanRatePct: 7.5 });
+  });
+
+  it('rejects unrealistic values and non-admins', async () => {
+    const admin = await signIn('admin@advench.test');
+    const bad = await admin.agent
+      .put('/api/v1/settings/firm')
+      .set(admin.csrfHeader)
+      .send({ loanRatePct: 99, loanTermYears: 30, loanDownpaymentPct: 10, loanIncomeRatioPct: 35 });
+    expect(bad.status).toBe(400);
+    const broker = await signIn('broker1@advench.test');
+    expect((await broker.agent.get('/api/v1/settings/firm')).status).toBe(200);
+    const put = await broker.agent
+      .put('/api/v1/settings/firm')
+      .set(broker.csrfHeader)
+      .send({ loanRatePct: 5, loanTermYears: 30, loanDownpaymentPct: 10, loanIncomeRatioPct: 35 });
+    expect(put.status).toBe(403);
+  });
+});

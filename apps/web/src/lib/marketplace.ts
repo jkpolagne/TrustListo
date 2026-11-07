@@ -54,6 +54,12 @@ export interface ListingDetail extends Omit<ListingCard, 'photo' | 'project'> {
     developer: { name: string };
   } | null;
   loanQuotations: LoanQuotation[];
+  loanDefaults: {
+    annualRatePct: number;
+    years: number;
+    downpaymentPct: number;
+    incomeRatioPct: number;
+  };
 }
 
 export interface Marker {

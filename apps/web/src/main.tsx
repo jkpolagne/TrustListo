@@ -13,10 +13,12 @@ import { Login } from './routes/auth/Login';
 import { Activity } from './routes/firm/Activity';
 import { AdminHome, BrokerHome, ManagerHome, SalespersonHome } from './routes/firm/Dashboards';
 import { Team } from './routes/firm/Team';
+import { FirmSettings } from './routes/admin/FirmSettings';
 import { Projects } from './routes/admin/Projects';
 import { UnitEditor } from './routes/admin/UnitEditor';
 import { Listings } from './routes/firm/Listings';
 import { AboutBadges } from './routes/public/AboutBadges';
+import { Credits } from './routes/public/Credits';
 import { Home } from './routes/public/Home';
 import { Properties } from './routes/public/Properties';
 import { PropertyDetail } from './routes/public/PropertyDetail';
@@ -34,6 +36,7 @@ const router = createBrowserRouter([
   { path: '/properties/map', element: <Properties initialView="map" /> },
   { path: '/properties/:slug', element: <PropertyDetail /> },
   { path: '/about-badges', element: <AboutBadges /> },
+  { path: '/credits', element: <Credits /> },
   {
     element: (
       <RequireRole>
@@ -52,6 +55,7 @@ const router = createBrowserRouter([
       { path: '/admin/listings/new', element: only(['COMPANY_ADMIN'], <UnitEditor />) },
       { path: '/admin/listings/:id', element: only(['COMPANY_ADMIN'], <UnitEditor />) },
       { path: '/admin/projects', element: only(['COMPANY_ADMIN'], <Projects />) },
+      { path: '/admin/settings', element: only(['COMPANY_ADMIN'], <FirmSettings />) },
 
       { path: '/broker', element: only(['BROKER'], <BrokerHome />) },
       {

@@ -13,6 +13,7 @@ import { documentsRouter } from './modules/documents/documents.routes';
 import { adminRouter } from './modules/firms/admin.routes';
 import { publicRouter } from './modules/marketplace/public.routes';
 import { catalogRouter } from './modules/properties/catalog.routes';
+import { settingsRouter } from './modules/settings/settings.routes';
 import { reviewsRouter } from './modules/reviews/reviews.routes';
 import { usersRouter } from './modules/users/users.routes';
 
@@ -47,6 +48,7 @@ export function createApp() {
   v1.use('/reviews', requireAuth, reviewsRouter);
   v1.use('/documents', requireAuth, documentsRouter);
   v1.use('/catalog', requireAuth, catalogRouter); // developers, projects, units
+  v1.use('/settings', requireAuth, settingsRouter);
 
   app.use('/api/v1', v1);
   app.use(notFound);

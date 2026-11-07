@@ -7,6 +7,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  SlidersHorizontal,
   Users,
   X,
   type LucideIcon,
@@ -28,6 +29,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/admin/listings', label: 'Listings', icon: Home },
     { to: '/admin/team', label: 'Team', icon: Users },
     { to: '/admin/activity', label: 'Activity log', icon: History },
+    { to: '/admin/settings', label: 'Settings', icon: SlidersHorizontal },
   ],
   BROKER: [
     { to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true },
