@@ -9,7 +9,9 @@ import { csrfProtection, requireAuth } from './middleware/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { auditRouter } from './modules/audit/audit.routes';
 import { authRouter } from './modules/auth/auth.routes';
+import { documentsRouter } from './modules/documents/documents.routes';
 import { adminRouter } from './modules/firms/admin.routes';
+import { reviewsRouter } from './modules/reviews/reviews.routes';
 import { usersRouter } from './modules/users/users.routes';
 
 export function createApp() {
@@ -39,6 +41,8 @@ export function createApp() {
   v1.use('/admin', requireAuth, adminRouter);
   v1.use('/users', requireAuth, usersRouter);
   v1.use('/audit', requireAuth, auditRouter);
+  v1.use('/reviews', requireAuth, reviewsRouter);
+  v1.use('/documents', requireAuth, documentsRouter);
 
   app.use('/api/v1', v1);
   app.use(notFound);

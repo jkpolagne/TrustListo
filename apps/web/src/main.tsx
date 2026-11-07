@@ -6,6 +6,9 @@ import type { Role } from '@trustlisto/shared';
 import { AppShell } from './components/AppShell';
 import { RequireRole } from './components/RequireRole';
 import { Account } from './routes/account/Account';
+import { AddConsultant } from './routes/admin/AddConsultant';
+import { ConsultantDetail } from './routes/admin/ConsultantDetail';
+import { ReviewCredential } from './routes/broker/ReviewCredential';
 import { Login } from './routes/auth/Login';
 import { Activity } from './routes/firm/Activity';
 import { AdminHome, BrokerHome, ManagerHome, SalespersonHome } from './routes/firm/Dashboards';
@@ -32,9 +35,15 @@ const router = createBrowserRouter([
 
       { path: '/admin', element: only(['COMPANY_ADMIN'], <AdminHome />) },
       { path: '/admin/team', element: only(['COMPANY_ADMIN'], <Team />) },
+      { path: '/admin/team/new', element: only(['COMPANY_ADMIN'], <AddConsultant />) },
+      { path: '/admin/team/:id', element: only(['COMPANY_ADMIN'], <ConsultantDetail />) },
       { path: '/admin/activity', element: only(['COMPANY_ADMIN'], <Activity />) },
 
       { path: '/broker', element: only(['BROKER'], <BrokerHome />) },
+      {
+        path: '/broker/reviews/credentials/:id',
+        element: only(['BROKER'], <ReviewCredential />),
+      },
       { path: '/broker/team', element: only(['BROKER'], <Team />) },
       { path: '/broker/activity', element: only(['BROKER'], <Activity />) },
 

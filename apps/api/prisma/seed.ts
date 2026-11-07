@@ -2,7 +2,10 @@
 // credentials, developers/projects/units, loan quotations, split-config placeholders.
 // Later milestones add seller listings, inquiries, clients, visits, commission templates.
 import { PrismaClient, type CredentialType, type ReviewStatus, type Role } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import argon2 from 'argon2';
+import sharp from 'sharp';
+import { ensureBucket, objectKey, putObject } from '../src/lib/storage';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: NODE_ENV=production');
@@ -39,6 +42,35 @@ function createUser(u: UserInput) {
   return prisma.user.create({ data: { ...u, passwordHash } });
 }
 
+const esc = (s: string) =>
+  s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+
+/**
+ * A mock credential image, obviously fake (SPEC §17: never real IDs). Rendered from SVG so
+ * the broker review screen has something to show.
+ */
+async function mockCredentialImage(
+  type: CredentialType,
+  holder: string,
+  number: string,
+  expiresAt: Date | null,
+): Promise<Buffer> {
+  const title = type === 'PRC_LICENSE' ? 'Real Estate Broker License' : 'Salesperson Registration';
+  const exp = expiresAt ? expiresAt.toISOString().slice(0, 10) : 'not shown';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760">
+    <rect width="1200" height="760" fill="#f4f4f2"/>
+    <rect x="30" y="30" width="1140" height="700" fill="none" stroke="#333" stroke-width="4"/>
+    <text x="80" y="130" font-family="Arial" font-size="44" font-weight="bold">${esc(title)}</text>
+    <text x="80" y="180" font-family="Arial" font-size="26" fill="#555">TrustListo demo data</text>
+    <text x="80" y="300" font-family="Arial" font-size="30">Name: ${esc(holder)}</text>
+    <text x="80" y="360" font-family="Arial" font-size="30">No.: ${esc(number)}</text>
+    <text x="80" y="420" font-family="Arial" font-size="30">Valid until: ${exp}</text>
+    <text x="600" y="620" font-family="Arial" font-size="84" font-weight="bold" fill="#c00" fill-opacity="0.35"
+      text-anchor="middle" transform="rotate(-12 600 600)">SPECIMEN · NOT VALID</text>
+  </svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
 async function credential(
   firmId: string,
   userId: string,
@@ -47,7 +79,32 @@ async function credential(
   expiresAt: Date | null,
   number: string,
 ) {
-  await prisma.credential.create({
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const png = await mockCredentialImage(
+    type,
+    `${user.firstName} ${user.lastName}`,
+    number,
+    expiresAt,
+  );
+  const storageKey = objectKey(firmId, 'credentials', userId, 'image/png');
+  await putObject(storageKey, png, 'image/png');
+
+  const reviewed = status === 'APPROVED' || status === 'REJECTED';
+  const broker = reviewed
+    ? await prisma.user.findFirst({ where: { firmId, role: 'BROKER' } })
+    : null;
+  const flags =
+    status === 'NEEDS_ATTENTION'
+      ? [
+          {
+            code: 'DUPLICATE_FILE',
+            severity: 'WARNING',
+            message: 'This exact file was already uploaded for another record.',
+          },
+        ]
+      : [];
+
+  const cred = await prisma.credential.create({
     data: {
       firmId,
       userId,
@@ -55,9 +112,31 @@ async function credential(
       status,
       expiresAt,
       numberEntered: number,
-      reviewedAt: status === 'APPROVED' ? new Date() : null,
+      reviewedAt: reviewed ? new Date() : null,
+      reviewedById: broker?.id,
     },
   });
+  const doc = await prisma.document.create({
+    data: {
+      firmId,
+      ownerType: 'CREDENTIAL',
+      ownerId: cred.id,
+      declaredType: type === 'PRC_LICENSE' ? 'PRC_ID' : 'DHSUD_CERT',
+      detectedType:
+        status === 'PENDING_AI' ? null : type === 'PRC_LICENSE' ? 'PRC_ID' : 'DHSUD_CERT',
+      storageKey,
+      mimeType: 'image/png',
+      sizeBytes: png.length,
+      sha256: createHash('sha256').update(png).digest('hex'),
+      uploadedById: userId,
+      aiStatus: status === 'PENDING_AI' ? 'QUEUED' : 'DONE',
+      flags,
+      reviewStatus: status,
+      reviewedById: broker?.id,
+      reviewedAt: reviewed ? new Date() : null,
+    },
+  });
+  await prisma.credential.update({ where: { id: cred.id }, data: { documentId: doc.id } });
 }
 
 /** Monthly amortization for a fully amortizing loan. */
@@ -184,6 +263,7 @@ async function developerListing(opts: {
 
 async function main() {
   passwordHash = await argon2.hash('Password123!');
+  await ensureBucket();
   await wipe();
 
   // ── SuperAdmin ──

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Role } from '@trustlisto/shared';
 import { api } from './api';
 
@@ -10,6 +10,9 @@ export interface Credential {
   type: 'PRC_LICENSE' | 'DHSUD_REGISTRATION';
   status: CredentialStatus;
   expiresAt: string | null;
+  numberEntered?: string;
+  rejectReason?: string | null;
+  createdAt?: string;
 }
 
 export interface TeamMember {
@@ -18,6 +21,7 @@ export interface TeamMember {
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string | null;
   isActive: boolean;
   managerId: string | null;
   brokerId: string | null;
@@ -30,6 +34,22 @@ export function useTeam() {
     queryKey: ['users'],
     queryFn: () => api<{ data: TeamMember[] }>('/users').then((r) => r.data),
   });
+}
+
+export function useMember(id: string) {
+  return useQuery({
+    queryKey: ['users', id],
+    queryFn: () => api<TeamMember>(`/users/${id}`),
+    // Refresh while a new upload is still being checked.
+    refetchInterval: (q) =>
+      q.state.data?.credentials.some((c) => c.status === 'PENDING_AI') ? 2000 : false,
+  });
+}
+
+/** After any change to people, refresh lists and the detail page. */
+export function useInvalidateTeam() {
+  const qc = useQueryClient();
+  return () => qc.invalidateQueries({ queryKey: ['users'] });
 }
 
 /** What a credential means to a person reading the screen. */

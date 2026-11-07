@@ -1,6 +1,8 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import type { ApiErrorBody } from '@trustlisto/shared';
+import multer from 'multer';
 import { ZodError } from 'zod';
+import { env } from '../env';
 
 export class HttpError extends Error {
   constructor(
@@ -32,6 +34,18 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
   if (err instanceof HttpError) {
     res.status(err.status).json(body(err.code, err.message, err.details));
+    return;
+  }
+  if (err instanceof multer.MulterError) {
+    const tooBig = err.code === 'LIMIT_FILE_SIZE';
+    res
+      .status(400)
+      .json(
+        body(
+          tooBig ? 'FILE_TOO_LARGE' : 'UPLOAD_FAILED',
+          tooBig ? `Files can be up to ${env.UPLOAD_MAX_MB} MB.` : 'The upload could not be read.',
+        ),
+      );
     return;
   }
   console.error(err);

@@ -1,11 +1,14 @@
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
+import { Link } from 'react-router-dom';
+import { useMe } from '../../lib/auth';
 import { fullName, useTeam, type TeamMember } from '../../lib/team';
 
 /** Firm hierarchy: broker → sales managers → salespersons (SPEC §5.1). */
 export function Team({ title = 'Team' }: { title?: string }) {
   const team = useTeam();
+  const isAdmin = useMe().data?.role === 'COMPANY_ADMIN';
 
   if (team.isPending) return <PageHeader title={title} />;
   if (team.isError) return <PageHeader title={title} intro={team.error.message} />;
@@ -29,6 +32,14 @@ export function Team({ title = 'Team' }: { title?: string }) {
         title={title}
         intro="Each salesperson reports to a sales manager, and each sales manager to a broker."
       />
+      {isAdmin && (
+        <Link
+          to="/admin/team/new"
+          className="mb-10 inline-block bg-ink px-5 py-3 font-semibold text-paper hover:bg-graphite"
+        >
+          Add a consultant
+        </Link>
+      )}
 
       {admins.length > 0 && (
         <section className="mb-10 max-w-4xl">
@@ -95,11 +106,18 @@ function ManagerList({
 }
 
 function PersonRow({ person, strong = false }: { person: TeamMember; strong?: boolean }) {
+  const isAdmin = useMe().data?.role === 'COMPANY_ADMIN';
   return (
     <li className="grid gap-1 border-b border-rule py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:gap-6">
       <div>
         <p className={strong ? 'font-bold' : 'font-semibold'}>
-          {fullName(person)}
+          {isAdmin && person.role !== 'COMPANY_ADMIN' ? (
+            <Link to={`/admin/team/${person.id}`} className="underline-offset-4 hover:underline">
+              {fullName(person)}
+            </Link>
+          ) : (
+            fullName(person)
+          )}
           {!person.isActive && (
             <span className="ml-2 text-sm font-normal text-flag">Deactivated</span>
           )}
