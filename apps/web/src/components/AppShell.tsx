@@ -2,6 +2,7 @@ import {
   Building2,
   ClipboardCheck,
   History,
+  Home,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -24,19 +25,25 @@ export const NAV: Record<Role, NavItem[]> = {
   SUPER_ADMIN: [{ to: '/superadmin', label: 'Firms', icon: Building2, end: true }],
   COMPANY_ADMIN: [
     { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
+    { to: '/admin/listings', label: 'Listings', icon: Home },
     { to: '/admin/team', label: 'Team', icon: Users },
     { to: '/admin/activity', label: 'Activity log', icon: History },
   ],
   BROKER: [
     { to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true },
+    { to: '/broker/listings', label: 'Listings', icon: Home },
     { to: '/broker/team', label: 'Team', icon: Users },
     { to: '/broker/activity', label: 'Activity log', icon: History },
   ],
   SALES_MANAGER: [
     { to: '/manager', label: 'Overview', icon: LayoutDashboard, end: true },
     { to: '/manager/team', label: 'My team', icon: Users },
+    { to: '/manager/listings', label: 'Listings', icon: Home },
   ],
-  SALES_PERSON: [{ to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true }],
+  SALES_PERSON: [
+    { to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true },
+    { to: '/salesperson/listings', label: 'Listings', icon: Home },
+  ],
 };
 
 export function AppShell() {

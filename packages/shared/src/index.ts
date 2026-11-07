@@ -70,3 +70,4 @@ export interface HealthResponse {
   db: boolean;
   postgis: string | null;
 }
+export * from './loan';

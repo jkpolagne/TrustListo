@@ -64,7 +64,7 @@
     border-color: var(--color-ink);
     box-shadow: 0 0 0 3px rgb(227 172 36 / 0.35);
   }
-  &:read-only {
+  &[readonly] {
     background: var(--color-canvas);
     color: var(--color-muted);
   }
@@ -114,4 +114,37 @@
     animation: none;
     opacity: 1;
   }
+}
+
+/* Map pins (Leaflet divIcons). Price pills, black like the primary buttons. */
+.tl-pin {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  padding: 4px 9px;
+  font: 700 12px/1.2 var(--font-sans);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+  border: 2px solid var(--color-paper);
+  cursor: pointer;
+}
+.tl-pin:hover {
+  background: #262624;
+}
+.tl-cluster {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: 800 14px/1 var(--font-sans);
+  border: 3px solid var(--color-ink);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+}
+.leaflet-container {
+  font-family: var(--font-sans);
 }
