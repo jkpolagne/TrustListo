@@ -10,6 +10,10 @@ import {
   SlidersHorizontal,
   Users,
   X,
+  CalendarDays,
+  Contact,
+  Inbox,
+  UserRoundSearch,
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -27,6 +31,10 @@ export const NAV: Record<Role, NavItem[]> = {
   COMPANY_ADMIN: [
     { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
     { to: '/admin/listings', label: 'Listings', icon: Home },
+    { to: '/admin/leads', label: 'Leads', icon: UserRoundSearch },
+    { to: '/admin/visits', label: 'Visits', icon: CalendarDays },
+    { to: '/admin/clients', label: 'Clients', icon: Contact },
+    { to: '/admin/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/admin/team', label: 'Team', icon: Users },
     { to: '/admin/activity', label: 'Activity log', icon: History },
     { to: '/admin/settings', label: 'Settings', icon: SlidersHorizontal },
@@ -34,6 +42,10 @@ export const NAV: Record<Role, NavItem[]> = {
   BROKER: [
     { to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true },
     { to: '/broker/listings', label: 'Listings', icon: Home },
+    { to: '/broker/leads', label: 'Leads', icon: UserRoundSearch },
+    { to: '/broker/visits', label: 'Visits', icon: CalendarDays },
+    { to: '/broker/clients', label: 'Clients', icon: Contact },
+    { to: '/broker/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/broker/team', label: 'Team', icon: Users },
     { to: '/broker/activity', label: 'Activity log', icon: History },
   ],
@@ -41,10 +53,18 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/manager', label: 'Overview', icon: LayoutDashboard, end: true },
     { to: '/manager/team', label: 'My team', icon: Users },
     { to: '/manager/listings', label: 'Listings', icon: Home },
+    { to: '/manager/leads', label: 'Leads', icon: UserRoundSearch },
+    { to: '/manager/visits', label: 'Visits', icon: CalendarDays },
+    { to: '/manager/clients', label: 'Clients', icon: Contact },
+    { to: '/manager/sellers', label: 'Seller requests', icon: Inbox },
   ],
   SALES_PERSON: [
     { to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true },
     { to: '/salesperson/listings', label: 'Listings', icon: Home },
+    { to: '/salesperson/leads', label: 'Leads', icon: UserRoundSearch },
+    { to: '/salesperson/visits', label: 'Visits', icon: CalendarDays },
+    { to: '/salesperson/clients', label: 'Clients', icon: Contact },
+    { to: '/salesperson/sellers', label: 'Seller requests', icon: Inbox },
   ],
 };
 

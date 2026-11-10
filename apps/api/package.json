@@ -13,6 +13,8 @@
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "db:backfill-photos": "dotenv -e ../../.env -- tsx prisma/backfillPhotos.ts",
+    "docai:samples": "tsx prisma/seed-docs/generate.ts",
+    "docai:eval": "tsx src/modules/docai/eval/evaluate.ts",
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && pnpm run db:seed",
     "postinstall": "prisma generate"
   },
@@ -30,7 +32,9 @@
     "helmet": "^8.0.0",
     "jose": "^6.2.15",
     "multer": "^2.5.0",
+    "pdf-to-img": "^7.0.2",
     "sharp": "^0.35.5",
+    "tesseract.js": "^6.0.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

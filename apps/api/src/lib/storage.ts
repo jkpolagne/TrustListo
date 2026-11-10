@@ -51,3 +51,9 @@ export function presignedGet(key: string): Promise<string> {
     expiresIn: 300,
   });
 }
+
+/** Reads a stored object back (the document pipeline needs the bytes for OCR). */
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key }));
+  return Buffer.from(await res.Body!.transformToByteArray());
+}

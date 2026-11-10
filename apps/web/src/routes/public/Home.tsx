@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { BrokerSeal } from '../../components/BrokerSeal';
 import { PropertyCard } from '../../components/public/PropertyCard';
 import { PublicLayout } from '../../components/public/PublicLayout';
+import { ButtonLink } from '../../components/ui';
 import { VerifiedDocument } from '../../components/VerifiedDocument';
 import { TYPE_LABEL, useListings, type PropertyType } from '../../lib/marketplace';
 
@@ -65,6 +66,25 @@ export function Home() {
           >
             <BrokerSeal size={36} /> What each badge means, and doesn't
           </Link>
+        </div>
+      </section>
+
+      {/* For owners: the same checks apply to their listing */}
+      <section className="mx-auto grid max-w-6xl gap-8 px-5 py-20 sm:px-8 lg:grid-cols-[1.2fr_1fr] lg:items-end">
+        <div>
+          <h2 className="font-display max-w-xl text-[clamp(1.9rem,3.6vw,2.75rem)] leading-tight">
+            Selling your own lot or house?
+          </h2>
+          <p className="mt-4 max-w-lg text-lg leading-relaxed text-graphite">
+            Pick a licensed agent from any firm here. Their broker checks your title before the
+            listing goes up, so buyers can see it's really yours.
+          </p>
+        </div>
+        <div className="lg:justify-self-end">
+          <ButtonLink to="/list-your-property" className="px-6 py-3.5 text-base">
+            List your property
+          </ButtonLink>
+          <p className="mt-3 text-sm text-muted">Free. You need the land title.</p>
         </div>
       </section>
     </PublicLayout>

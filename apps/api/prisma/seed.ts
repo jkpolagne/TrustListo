@@ -1,12 +1,24 @@
 // Demo seed (SPEC §17). Fictional people only. M0 scope: firms, users + hierarchy,
 // credentials, developers/projects/units, loan quotations, split-config placeholders.
-// Later milestones add seller listings, inquiries, clients, visits, commission templates.
-import { PrismaClient, type CredentialType, type ReviewStatus, type Role } from '@prisma/client';
+// M4 adds Module 1 documents: readable credential/LTS images and two individual seller
+// listings with their title, tax declaration, RPT receipt and seller ID.
+// Later milestones add inquiries, clients, visits, commission templates.
+import {
+  PrismaClient,
+  type CredentialType,
+  type DocType,
+  type Prisma,
+  type ReviewStatus,
+  type Role,
+} from '@prisma/client';
 import { createHash } from 'node:crypto';
 import argon2 from 'argon2';
-import sharp from 'sharp';
 import { ensureBucket, objectKey, putObject } from '../src/lib/storage';
+import * as mock from './seed-docs/mockDocs';
+import { SAMPLES } from './seed-docs/samples';
 import { attachSeedPhotos } from './seedPhotos';
+import { syncChecklist } from '../src/modules/clients/checklist';
+import { createCommission, evaluateClient } from '../src/modules/commissions/service';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: NODE_ENV=production');
@@ -43,35 +55,42 @@ function createUser(u: UserInput) {
   return prisma.user.create({ data: { ...u, passwordHash } });
 }
 
-const esc = (s: string) =>
-  s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * A mock credential image, obviously fake (SPEC §17: never real IDs). Rendered from SVG so
- * the broker review screen has something to show.
+ * A mock credential image (SPEC §17: never real IDs), laid out like the real PRC card / DHSUD
+ * certificate so Module 1 can read it. `printedName` lets a demo document disagree with the
+ * consultant's record, which the AI should flag.
  */
-async function mockCredentialImage(
+function mockCredentialImage(
   type: CredentialType,
-  holder: string,
+  user: { firstName: string; lastName: string },
   number: string,
-  expiresAt: Date | null,
+  validUntil: Date,
+  printedName?: string,
 ): Promise<Buffer> {
-  const title = type === 'PRC_LICENSE' ? 'Real Estate Broker License' : 'Salesperson Registration';
-  const exp = expiresAt ? expiresAt.toISOString().slice(0, 10) : 'not shown';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760">
-    <rect width="1200" height="760" fill="#f4f4f2"/>
-    <rect x="30" y="30" width="1140" height="700" fill="none" stroke="#333" stroke-width="4"/>
-    <text x="80" y="130" font-family="Arial" font-size="44" font-weight="bold">${esc(title)}</text>
-    <text x="80" y="180" font-family="Arial" font-size="26" fill="#555">TrustListo demo data</text>
-    <text x="80" y="300" font-family="Arial" font-size="30">Name: ${esc(holder)}</text>
-    <text x="80" y="360" font-family="Arial" font-size="30">No.: ${esc(number)}</text>
-    <text x="80" y="420" font-family="Arial" font-size="30">Valid until: ${exp}</text>
-    <text x="600" y="620" font-family="Arial" font-size="84" font-weight="bold" fill="#c00" fill-opacity="0.35"
-      text-anchor="middle" transform="rotate(-12 600 600)">SPECIMEN · NOT VALID</text>
-  </svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  const [first, last] = printedName ? printedName.split(' ') : [user.firstName, user.lastName];
+  return type === 'PRC_LICENSE'
+    ? mock.prcId({
+        last: last!.toUpperCase(),
+        first: first!.toUpperCase(),
+        middle: 'SANTOS',
+        registrationNumber: number.replace(/^PRC-/, ''),
+        registered: isoDay(inDays(-1500)),
+        validUntil: isoDay(validUntil),
+      })
+    : mock.dhsudCert({
+        name: `${first} ${last}`,
+        registrationNumber: number,
+        issued: isoDay(inDays(-300)),
+        validUntil: isoDay(validUntil),
+      });
 }
 
+/**
+ * Seeds a credential. APPROVED/REJECTED ones are stored as already decided. Undecided ones are
+ * left QUEUED: the API reads them with Module 1 when it starts (server.ts), like a fresh upload.
+ */
 async function credential(
   firmId: string,
   userId: string,
@@ -79,14 +98,10 @@ async function credential(
   status: ReviewStatus,
   expiresAt: Date | null,
   number: string,
+  printedName?: string,
 ) {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  const png = await mockCredentialImage(
-    type,
-    `${user.firstName} ${user.lastName}`,
-    number,
-    expiresAt,
-  );
+  const png = await mockCredentialImage(type, user, number, expiresAt ?? inDays(400), printedName);
   const storageKey = objectKey(firmId, 'credentials', userId, 'image/png');
   await putObject(storageKey, png, 'image/png');
 
@@ -94,16 +109,8 @@ async function credential(
   const broker = reviewed
     ? await prisma.user.findFirst({ where: { firmId, role: 'BROKER' } })
     : null;
-  const flags =
-    status === 'NEEDS_ATTENTION'
-      ? [
-          {
-            code: 'DUPLICATE_FILE',
-            severity: 'WARNING',
-            message: 'This exact file was already uploaded for another record.',
-          },
-        ]
-      : [];
+  if (!reviewed) status = 'PENDING_AI';
+  const flags: never[] = [];
 
   const cred = await prisma.credential.create({
     data: {
@@ -138,6 +145,512 @@ async function credential(
     },
   });
   await prisma.credential.update({ where: { id: cred.id }, data: { documentId: doc.id } });
+}
+
+/**
+ * Stores a seed document. With `approvedBy` it is recorded as already broker-approved (with
+ * the fields a broker would have confirmed); without, it is QUEUED for Module 1 to read when
+ * the API starts.
+ */
+async function seedDocument(opts: {
+  firmId: string;
+  ownerType: 'PROJECT' | 'SELLER_REQUEST';
+  ownerId: string;
+  declaredType: DocType;
+  file: Buffer;
+  mime: string;
+  uploadedById: string;
+  approvedBy?: string;
+  fields?: Record<string, string>;
+}) {
+  const storageKey = objectKey(opts.firmId, opts.ownerType.toLowerCase(), opts.ownerId, opts.mime);
+  await putObject(storageKey, opts.file, opts.mime);
+  const approved = !!opts.approvedBy;
+  return prisma.document.create({
+    data: {
+      firmId: opts.firmId,
+      ownerType: opts.ownerType,
+      ownerId: opts.ownerId,
+      declaredType: opts.declaredType,
+      storageKey,
+      mimeType: opts.mime,
+      sizeBytes: opts.file.length,
+      sha256: createHash('sha256').update(opts.file).digest('hex'),
+      uploadedById: opts.uploadedById,
+      aiStatus: approved ? 'DONE' : 'QUEUED',
+      detectedType: approved ? opts.declaredType : null,
+      reviewStatus: approved ? 'APPROVED' : 'PENDING_AI',
+      reviewedById: opts.approvedBy,
+      reviewedAt: approved ? new Date() : null,
+      flags: approved ? [] : undefined,
+      extracted: opts.fields
+        ? (Object.fromEntries(
+            Object.entries(opts.fields).map(([k, value]) => [k, { value, confidence: 95 }]),
+          ) as Prisma.InputJsonValue)
+        : undefined,
+    },
+  });
+}
+
+/**
+ * Individual seller listing waiting for broker review (SPEC §7.6, §17): the request, its
+ * PENDING_REVIEW property, and the four documents the agent uploaded (queued for Module 1).
+ */
+async function sellerListing(opts: {
+  firmId: string;
+  agentId: string;
+  sellerName: string;
+  sellerPhone: string;
+  barangay: string;
+  lat: number;
+  lng: number;
+  lotAreaSqm: number;
+  price: number;
+  title: string;
+  /** Evaluation samples (prisma/seed-docs/samples.ts) to upload as this listing's documents. */
+  docs: (string | { file: string; declaredType: DocType; render: () => Promise<Buffer> })[];
+}) {
+  const request = await prisma.sellerListingRequest.create({
+    data: {
+      firmId: opts.firmId,
+      agentId: opts.agentId,
+      sellerName: opts.sellerName,
+      sellerPhone: opts.sellerPhone,
+      locationText: `${opts.barangay}, Naga City`,
+      propertyType: 'LOT',
+      lotAreaSqm: opts.lotAreaSqm,
+      askingPrice: opts.price,
+      hasTitle: true,
+      photoKeys: [],
+      status: 'SUBMITTED_FOR_REVIEW',
+      consentAt: new Date(),
+    },
+  });
+  const property = await prisma.property.create({
+    data: {
+      firmId: opts.firmId,
+      source: 'INDIVIDUAL_SELLER',
+      sellerRequestId: request.id,
+      assignedAgentId: opts.agentId,
+      title: opts.title,
+      slug: slugify(opts.title),
+      type: 'LOT',
+      description: `${opts.title}. Sold by the owner through a TrustListo agent.`,
+      price: opts.price,
+      lotAreaSqm: opts.lotAreaSqm,
+      barangay: opts.barangay,
+      status: 'PENDING_REVIEW',
+    },
+  });
+  await setGeom('Property', property.id, opts.lat, opts.lng);
+  await attachSeedPhotos(prisma, opts.firmId, property.id, 'LOT');
+  for (const doc of opts.docs) {
+    const s = typeof doc === 'string' ? SAMPLES.find((x) => x.file === doc)! : doc;
+    await seedDocument({
+      firmId: opts.firmId,
+      ownerType: 'SELLER_REQUEST',
+      ownerId: request.id,
+      declaredType: s.declaredType,
+      file: Buffer.from(await s.render()),
+      mime: s.file.endsWith('.jpg') ? 'image/jpeg' : 'image/png',
+      uploadedById: opts.agentId,
+    });
+  }
+  return { request, property };
+}
+
+/** An RPT receipt paid for the current year, so the clean demo listing stays "tax current". */
+const currentRptReceipt = (payor: string, tdNumber: string) => {
+  const year = new Date().getFullYear();
+  return {
+    file: 'rpt-current.png',
+    declaredType: 'RPT_RECEIPT' as DocType,
+    render: () =>
+      mock.rptReceipt({
+        orNumber: '7845123',
+        date: `${year}-01-15`,
+        payor,
+        tdNumber,
+        period: `1st-4th Qtr ${year}`,
+        basic: 2_880,
+      }),
+  };
+};
+
+/**
+ * Leads and visits for the Advench dashboards (SPEC §17): every lead status, both sources, and
+ * visits in each state. Buyers are fictional.
+ */
+async function seedLeads(firmId: string, adminId: string) {
+  const units = await prisma.property.findMany({
+    where: { firmId, source: 'DEVELOPER', status: 'LIVE' },
+    select: { id: true },
+    take: 6,
+  });
+  const sp = await prisma.user.findUniqueOrThrow({ where: { email: 'sp1@advench.test' } });
+  const sm = await prisma.user.findUniqueOrThrow({ where: { email: 'sm1@advench.test' } });
+  const hours = (n: number) => new Date(Date.now() + n * 3_600_000);
+  const leads: {
+    consultantId: string;
+    buyerName: string;
+    status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'VISIT_SCHEDULED' | 'LOST';
+    source: 'ORGANIC' | 'REFERRAL';
+    paymentPref: 'PAG_IBIG' | 'BANK' | 'CASH' | 'IN_HOUSE' | 'NOT_SURE';
+    natureOfWork: 'EMPLOYED' | 'OFW' | 'BUSINESS';
+    civilStatus: 'SINGLE' | 'MARRIED';
+  }[] = [
+    {
+      consultantId: sp.id,
+      buyerName: 'Lorna Belmonte',
+      status: 'NEW',
+      source: 'ORGANIC',
+      paymentPref: 'PAG_IBIG',
+      natureOfWork: 'OFW',
+      civilStatus: 'MARRIED',
+    },
+    {
+      consultantId: sp.id,
+      buyerName: 'Dennis Yap',
+      status: 'NEW',
+      source: 'REFERRAL',
+      paymentPref: 'BANK',
+      natureOfWork: 'EMPLOYED',
+      civilStatus: 'SINGLE',
+    },
+    {
+      consultantId: sp.id,
+      buyerName: 'Grace Abad',
+      status: 'CONTACTED',
+      source: 'ORGANIC',
+      paymentPref: 'NOT_SURE',
+      natureOfWork: 'EMPLOYED',
+      civilStatus: 'MARRIED',
+    },
+    {
+      consultantId: sp.id,
+      buyerName: 'Ramil Cuevas',
+      status: 'QUALIFIED',
+      source: 'ORGANIC',
+      paymentPref: 'IN_HOUSE',
+      natureOfWork: 'BUSINESS',
+      civilStatus: 'MARRIED',
+    },
+    {
+      consultantId: sp.id,
+      buyerName: 'Teresa Lim',
+      status: 'VISIT_SCHEDULED',
+      source: 'REFERRAL',
+      paymentPref: 'CASH',
+      natureOfWork: 'BUSINESS',
+      civilStatus: 'SINGLE',
+    },
+    {
+      consultantId: sp.id,
+      buyerName: 'Alvin Mercado',
+      status: 'LOST',
+      source: 'ORGANIC',
+      paymentPref: 'BANK',
+      natureOfWork: 'EMPLOYED',
+      civilStatus: 'SINGLE',
+    },
+    {
+      consultantId: sm.id,
+      buyerName: 'Cecilia Ramos',
+      status: 'QUALIFIED',
+      source: 'ORGANIC',
+      paymentPref: 'PAG_IBIG',
+      natureOfWork: 'EMPLOYED',
+      civilStatus: 'MARRIED',
+    },
+  ];
+  const created: Prisma.InquiryGetPayload<object>[] = [];
+  for (const [i, l] of leads.entries()) {
+    created.push(
+      await prisma.inquiry.create({
+        data: {
+          ...l,
+          firmId,
+          propertyId: units[i % units.length]!.id,
+          referralCode: l.source === 'REFERRAL' ? sp.referralCode : null,
+          buyerPhone: `0917555${String(1000 + i)}`,
+          message: 'Is this still available? I would like to see the unit.',
+          consentAt: new Date(),
+          createdAt: hours(-24 * (leads.length - i)),
+        },
+      }),
+    );
+  }
+  const lost = created[5]!;
+  await prisma.auditLog.create({
+    data: {
+      firmId,
+      actorId: sp.id,
+      action: 'LEAD_STATUS_CHANGED',
+      entityType: 'Inquiry',
+      entityId: lost.id,
+      before: { status: 'CONTACTED' },
+      after: { status: 'LOST', reason: 'Bought a unit from another developer.' },
+    },
+  });
+
+  const visit = (
+    inquiry: (typeof created)[number],
+    at: Date,
+    status: 'PENDING' | 'APPROVED' | 'DECLINED' | 'COMPLETED' | 'NO_SHOW',
+    extra: { declineReason?: string } = {},
+  ) =>
+    prisma.visit.create({
+      data: {
+        firmId,
+        propertyId: inquiry.propertyId,
+        consultantId: inquiry.consultantId,
+        inquiryId: inquiry.id,
+        scheduledAt: at,
+        status,
+        decidedById: status === 'PENDING' ? null : adminId,
+        notes: 'Meet at the model house.',
+        ...extra,
+      },
+    });
+  await visit(created[3]!, hours(50), 'PENDING');
+  await visit(created[6]!, hours(74), 'PENDING');
+  await visit(created[4]!, hours(26), 'APPROVED');
+  await visit(created[2]!, hours(30), 'DECLINED', {
+    declineReason: 'The model house is closed for repainting that day.',
+  });
+  await visit(created[4]!, hours(-72), 'COMPLETED');
+  await visit(created[3]!, hours(-120), 'NO_SHOW');
+
+  // Teresa Lim visited and reserved: a cash client with her reservation recorded (SPEC §10.1).
+  const teresa = created[4]!;
+  const unit = await prisma.property.findUniqueOrThrow({ where: { id: teresa.propertyId } });
+  await prisma.inquiry.update({ where: { id: teresa.id }, data: { status: 'RESERVED' } });
+  const client = await prisma.client.create({
+    data: {
+      firmId,
+      inquiryId: teresa.id,
+      propertyId: teresa.propertyId,
+      consultantId: teresa.consultantId,
+      fullName: teresa.buyerName,
+      phone: teresa.buyerPhone,
+      civilStatus: 'SINGLE',
+      paymentMethod: 'CASH',
+      tcp: unit.price,
+      saleType: 'DEVELOPER_SALE',
+      reservationPaidAt: hours(-48),
+    },
+  });
+  await prisma.payment.create({
+    data: {
+      firmId,
+      clientId: client.id,
+      kind: 'RESERVATION',
+      amount: 20_000,
+      paidAt: hours(-48),
+      confirmedById: teresa.consultantId,
+    },
+  });
+  await prisma.$transaction((tx) =>
+    syncChecklist(tx, client, {
+      paymentMethod: 'CASH',
+      civilStatus: 'SINGLE',
+      employmentType: null,
+    }),
+  );
+  await prisma.$transaction((tx) => createCommission(tx, client.id));
+  await evaluateClient(client.id);
+}
+
+type Trigger =
+  | 'ON_RESERVATION'
+  | 'FULL_PAYMENT'
+  | 'TCP_PERCENT_PAID'
+  | 'DP_PERCENT_PAID'
+  | 'DP_FULLY_PAID'
+  | 'LOAN_RELEASED'
+  | 'MONTHLY';
+type TrancheDef = [
+  label: string,
+  share: number,
+  trigger: Trigger,
+  value: number | null,
+  stage: 'RESERVATION' | 'FINANCING',
+];
+
+/**
+ * Commission templates per developer × payment method (SPEC §10.3). Gross 5% everywhere and the
+ * DP thresholds are PLACEHOLDERS (OPEN-5, OPEN-8) — the CompanyAdmin edits them in Settings.
+ */
+async function seedCommissionTemplates(firmId: string) {
+  const GROSS = 5; // PLACEHOLDER (OPEN-5)
+  const cash: TrancheDef[] = [
+    ['Advance (20%)', 20, 'FULL_PAYMENT', null, 'RESERVATION'], // OPEN-7: on full cash payment
+    ['Balance (80%)', 80, 'FULL_PAYMENT', null, 'RESERVATION'],
+  ];
+  const halfTcp: TrancheDef[] = [['Full commission', 100, 'TCP_PERCENT_PAID', 50, 'FINANCING']];
+  const camella: TrancheDef[] = [
+    ['Tranche 1', 30, 'DP_PERCENT_PAID', 30, 'RESERVATION'], // X₁ PLACEHOLDER (OPEN-8)
+    ['Tranche 2', 30, 'DP_PERCENT_PAID', 60, 'RESERVATION'], // X₂ PLACEHOLDER (OPEN-8)
+    ['Tranche 3', 30, 'DP_FULLY_PAID', null, 'FINANCING'],
+    ['Retention', 10, 'LOAN_RELEASED', null, 'FINANCING'],
+  ];
+  const parkview: TrancheDef[] = [
+    ['First DP milestone', 20, 'DP_PERCENT_PAID', 50, 'RESERVATION'], // PLACEHOLDER (OPEN-8)
+    ['DP fully paid', 80, 'DP_FULLY_PAID', null, 'FINANCING'],
+  ];
+  const monthly: TrancheDef[] = [['Monthly', 100, 'MONTHLY', null, 'RESERVATION']];
+
+  const create = (
+    developerId: string | null,
+    method: 'CASH' | 'DEFERRED_CASH' | 'IN_HOUSE' | 'BANK' | 'PAG_IBIG',
+    tranches: TrancheDef[],
+    requiresTransmittal = true,
+  ) =>
+    prisma.commissionTemplate.create({
+      data: {
+        firmId,
+        developerId,
+        paymentMethod: method,
+        grossRatePct: GROSS,
+        requiresTransmittal,
+        tranches: {
+          create: tranches.map(([label, sharePct, trigger, triggerValue, requiredStage], i) => ({
+            sequence: i + 1,
+            label,
+            sharePct,
+            trigger,
+            triggerValue,
+            requiredStage,
+          })),
+        },
+      },
+    });
+
+  for (const dev of await prisma.developer.findMany({ where: { firmId } })) {
+    if (/futura/i.test(dev.name)) {
+      for (const m of ['CASH', 'DEFERRED_CASH', 'IN_HOUSE', 'BANK', 'PAG_IBIG'] as const) {
+        await create(dev.id, m, monthly);
+      }
+      continue;
+    }
+    await create(dev.id, 'CASH', cash);
+    await create(dev.id, 'DEFERRED_CASH', halfTcp);
+    await create(dev.id, 'IN_HOUSE', halfTcp);
+    // Vista Land / St. Andrew per §10.3; other developers default to the same until confirmed.
+    const loan = /parkview/i.test(dev.name) ? parkview : camella;
+    await create(dev.id, 'BANK', loan);
+    await create(dev.id, 'PAG_IBIG', loan);
+  }
+  // Private sales: spot cash, no developer transmittal.
+  await create(
+    null,
+    'CASH',
+    [['Full commission', 100, 'FULL_PAYMENT', null, 'RESERVATION']],
+    false,
+  );
+}
+
+/**
+ * Deals in each commission status for the demo (§17): blocked on documents, waiting for the
+ * developer's transmittal (aged 45 days), and ready for the broker's voucher. Teresa Lim
+ * (seedLeads) is the "waiting for payment" one.
+ */
+async function seedCommissionDeals(firmId: string) {
+  const sp = await prisma.user.findUniqueOrThrow({ where: { email: 'sp2@advench.test' } });
+  const broker = await prisma.user.findFirstOrThrow({ where: { firmId, role: 'BROKER' } });
+  const units = await prisma.property.findMany({
+    where: {
+      firmId,
+      source: 'DEVELOPER',
+      status: 'LIVE',
+      project: { developer: { name: { not: { contains: 'Futura' } } } },
+    },
+    take: 3,
+    orderBy: { price: 'asc' },
+  });
+  const ago = (days: number) => new Date(Date.now() - days * 86_400_000);
+  const deals = [
+    { name: 'Mario Fernandez', method: 'CASH' as const, paidAll: true, verified: false },
+    { name: 'Liza Domingo', method: 'IN_HOUSE' as const, paidAll: false, verified: true },
+    {
+      name: 'Noel Santiago',
+      method: 'CASH' as const,
+      paidAll: true,
+      verified: true,
+      transmittal: true,
+    },
+  ];
+  for (const [i, d] of deals.entries()) {
+    const unit = units[i % units.length]!;
+    const tcp = Number(unit.price);
+    const client = await prisma.client.create({
+      data: {
+        firmId,
+        propertyId: unit.id,
+        consultantId: sp.id,
+        fullName: d.name,
+        phone: `0918777${1000 + i}`,
+        civilStatus: 'SINGLE',
+        paymentMethod: d.method,
+        tcp,
+        saleType: 'DEVELOPER_SALE',
+        reservationPaidAt: ago(90),
+      },
+    });
+    const paid = d.paidAll ? tcp : Math.ceil(tcp * 0.55);
+    await prisma.payment.createMany({
+      data: [
+        {
+          firmId,
+          clientId: client.id,
+          kind: 'RESERVATION',
+          amount: 20_000,
+          paidAt: ago(90),
+          confirmedById: sp.id,
+        },
+        {
+          firmId,
+          clientId: client.id,
+          kind: d.method === 'CASH' ? 'FULL_CASH' : 'IN_HOUSE_INSTALLMENT',
+          amount: paid - 20_000,
+          paidAt: ago(60),
+          confirmedById: sp.id,
+        },
+      ],
+    });
+    await prisma.$transaction((tx) =>
+      syncChecklist(tx, client, {
+        paymentMethod: d.method,
+        civilStatus: 'SINGLE',
+        employmentType: null,
+      }),
+    );
+    await prisma.requirementItem.updateMany({
+      where: { clientId: client.id },
+      data: d.verified
+        ? { status: 'VERIFIED', verifiedById: broker.id, verifiedAt: ago(50) }
+        : { status: 'UPLOADED' },
+    });
+    await prisma.$transaction((tx) => createCommission(tx, client.id));
+    await evaluateClient(client.id);
+    // Make the transmittal wait look 45 days old, so the aging buckets have something to show.
+    await prisma.commissionTranche.updateMany({
+      where: { firmId, commission: { clientId: client.id }, status: 'AWAITING_TRANSMITTAL' },
+      data: { awaitingSince: ago(45) },
+    });
+    if (d.transmittal) {
+      const tranches = await prisma.commissionTranche.findMany({
+        where: { commission: { clientId: client.id } },
+      });
+      for (const t of tranches) {
+        await prisma.commissionTranche.update({
+          where: { id: t.id },
+          data: { transmittalAmount: t.amount },
+        });
+      }
+      await evaluateClient(client.id);
+    }
+  }
 }
 
 /** Monthly amortization for a fully amortizing loan. */
@@ -224,6 +737,34 @@ async function developerListing(opts: {
     },
   });
   await setGeom('Project', project.id, opts.lat, opts.lng);
+
+  // The License to Sell on file, already approved by the broker.
+  const lts = {
+    ltsNumber: opts.ltsNumber,
+    project: opts.project,
+    developer: opts.developer,
+    location: opts.location,
+    issued: isoDay(inDays(-700)),
+    validUntil: isoDay(opts.ltsExpiresAt),
+  };
+  const ltsDoc = await seedDocument({
+    firmId: opts.firmId,
+    ownerType: 'PROJECT',
+    ownerId: project.id,
+    declaredType: 'LICENSE_TO_SELL',
+    file: await mock.licenseToSell(lts),
+    mime: 'image/png',
+    uploadedById: opts.brokerId,
+    approvedBy: opts.brokerId,
+    fields: {
+      ltsNumber: lts.ltsNumber,
+      projectName: lts.project,
+      developerName: lts.developer,
+      issueDate: lts.issued,
+      expiryDate: lts.validUntil,
+    },
+  });
+  await prisma.project.update({ where: { id: project.id }, data: { ltsDocumentId: ltsDoc.id } });
 
   for (const [i, u] of opts.units.entries()) {
     const p = await prisma.property.create({
@@ -377,6 +918,8 @@ async function main() {
       status,
       days === null ? null : inDays(days),
       `DHSUD-R5-20${i + 1}`,
+      // This one's certificate carries a different first name: Module 1 should flag it.
+      status === 'NEEDS_ATTENTION' ? `Kristine ${sp.lastName}` : undefined,
     );
   }
 
@@ -627,14 +1170,104 @@ async function main() {
     });
   }
 
+  // ── Module 1 work for the brokers (read by the AI when the API starts) ──
+  // The license expiring within 60 days has a renewal waiting for the Advench broker.
+  const expiring = await prisma.project.findFirstOrThrow({
+    where: { ltsNumber: 'LTS-R5-2022-0333' },
+    include: { developer: true },
+  });
+  const advAdmin = await prisma.user.findFirstOrThrow({
+    where: { firmId: adv.id, role: 'COMPANY_ADMIN' },
+  });
+  await seedDocument({
+    firmId: adv.id,
+    ownerType: 'PROJECT',
+    ownerId: expiring.id,
+    declaredType: 'LICENSE_TO_SELL',
+    file: mock.licenseToSellPdf({
+      ltsNumber: 'LTS-R5-2026-0333',
+      project: expiring.name,
+      developer: expiring.developer.name,
+      location: expiring.locationText,
+      issued: isoDay(inDays(-5)),
+      validUntil: isoDay(inDays(3 * 365)),
+    }),
+    mime: 'application/pdf',
+    uploadedById: advAdmin.id,
+  });
+
+  // Two individual seller listings (§17): one clean, one the AI should flag.
+  await sellerListing({
+    firmId: adv.id,
+    agentId: sps[0]!.id,
+    sellerName: 'Maria Lourdes Santos',
+    sellerPhone: '09171234567',
+    barangay: 'Concepcion Pequeña',
+    lat: 13.6268,
+    lng: 123.2072,
+    lotAreaSqm: 240,
+    price: 3_600_000,
+    title: 'Residential lot in Concepcion Pequeña',
+    docs: [
+      'title-santos.png',
+      'taxdec-santos.png',
+      currentRptReceipt('MARIA LOURDES S. SANTOS', '2024-05-0123'),
+      'id-santos-photo.jpg',
+    ],
+  });
+  await sellerListing({
+    firmId: bp.id,
+    agentId: bpSp1.id,
+    sellerName: 'Roberto Villanueva',
+    sellerPhone: '09281234567',
+    barangay: 'Pacol',
+    lat: 13.6385,
+    lng: 123.2531,
+    lotAreaSqm: 320,
+    price: 2_900_000,
+    title: 'Corner lot in Pacol',
+    docs: [
+      'title-villanueva.png',
+      'taxdec-villanueva.png',
+      'rpt-villanueva.png',
+      'id-villanueva.png',
+    ],
+  });
+  // A request a seller just sent, waiting for the agent to accept it (§17 demo step 9).
+  await prisma.sellerListingRequest.create({
+    data: {
+      firmId: bp.id,
+      agentId: bpSm.id,
+      sellerName: 'Ana Marie Bautista',
+      sellerPhone: '09391234567',
+      locationText: 'Carolina, Naga City',
+      propertyType: 'HOUSE_AND_LOT',
+      lotAreaSqm: 180,
+      floorAreaSqm: 96,
+      askingPrice: 4_250_000,
+      hasTitle: true,
+      photoKeys: [],
+      status: 'NEW',
+      consentAt: new Date(),
+    },
+  });
+  // Commission templates (§10.3) and the OPEN-6 withholding placeholder, before any deal exists.
+  for (const firmId of [adv.id, bp.id]) {
+    await seedCommissionTemplates(firmId);
+    await prisma.firm.update({ where: { id: firmId }, data: { withholdingPct: 5 } }); // PLACEHOLDER
+  }
+  await seedLeads(adv.id, advAdmin.id);
+  await seedCommissionDeals(adv.id);
+
+  const queued = await prisma.document.count({ where: { aiStatus: 'QUEUED' } });
+
   const [firms, users, props] = await Promise.all([
     prisma.firm.count(),
     prisma.user.count(),
     prisma.property.count(),
   ]);
-  console.log(
-    `Seeded ${firms} firms, ${users} users, ${props} live listings. Password: Password123!`,
-  );
+  console.log(`Seeded ${firms} firms, ${users} users, ${props} listings. Password: Password123!`);
+  console.log(`${queued} documents are queued for Module 1; the API reads them when it starts.`);
 }
 
 main()

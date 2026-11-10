@@ -9,7 +9,7 @@ import { objectKey, putObject } from '../../lib/storage';
 import { requireDocumentFile, singleFile } from '../../lib/upload';
 import { requireRole } from '../../middleware/auth';
 import { HttpError, notFoundError } from '../../middleware/errorHandler';
-import { queueCredentialCheck } from '../docai/credentialStub';
+import { queueDocument } from '../docai/pipeline';
 
 export const usersRouter = Router();
 
@@ -290,6 +290,39 @@ usersRouter.post('/:id/credentials', adminOnly, singleFile('file'), async (req, 
     return tx.credential.update({ where: { id: cred.id }, data: { documentId: doc.id } });
   });
 
-  queueCredentialCheck(credential.id);
+  queueDocument(credential.documentId!);
   res.status(201).json(credential);
+});
+
+/**
+ * New referral code (SPEC §10.7), e.g. after a link was shared somewhere it shouldn't be.
+ * Initials plus 4 random characters; old links stop routing to this consultant.
+ */
+usersRouter.post('/:id/referral-code', adminOnly, async (req, res) => {
+  const { firmId } = firmScope(req.user!);
+  const target = await prisma.user.findFirst({
+    where: { id: String(req.params.id), firmId, role: { in: ['SALES_MANAGER', 'SALES_PERSON'] } },
+  });
+  if (!target) throw notFoundError();
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no look-alikes (0/O, 1/I)
+  let code = '';
+  do {
+    code = `${target.firstName[0] ?? 'X'}${target.lastName[0] ?? 'X'}`.toUpperCase();
+    for (let i = 0; i < 4; i++) code += alphabet[randomInt(alphabet.length)];
+  } while (await prisma.user.findUnique({ where: { referralCode: code } }));
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: target.id }, data: { referralCode: code } });
+    await audit(
+      req,
+      {
+        action: 'REFERRAL_CODE_REGENERATED',
+        entityType: 'User',
+        entityId: target.id,
+        before: { referralCode: target.referralCode },
+        after: { referralCode: code },
+      },
+      tx,
+    );
+  });
+  res.json({ referralCode: code });
 });

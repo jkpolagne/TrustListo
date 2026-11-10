@@ -9,6 +9,15 @@ import { Account } from './routes/account/Account';
 import { AddConsultant } from './routes/admin/AddConsultant';
 import { ConsultantDetail } from './routes/admin/ConsultantDetail';
 import { ReviewCredential } from './routes/broker/ReviewCredential';
+import { ReviewDocument } from './routes/broker/ReviewDocument';
+import { ReviewListing } from './routes/broker/ReviewListing';
+import { SellerRequestDetail } from './routes/firm/SellerRequestDetail';
+import { SellerRequests } from './routes/firm/SellerRequests';
+import { LeadDetail } from './routes/firm/LeadDetail';
+import { Leads } from './routes/firm/Leads';
+import { Visits } from './routes/firm/Visits';
+import { ClientDetail } from './routes/firm/ClientDetail';
+import { Clients } from './routes/firm/Clients';
 import { Login } from './routes/auth/Login';
 import { Activity } from './routes/firm/Activity';
 import { AdminHome, BrokerHome, ManagerHome, SalespersonHome } from './routes/firm/Dashboards';
@@ -19,6 +28,7 @@ import { UnitEditor } from './routes/admin/UnitEditor';
 import { Listings } from './routes/firm/Listings';
 import { AboutBadges } from './routes/public/AboutBadges';
 import { Credits } from './routes/public/Credits';
+import { ListYourProperty } from './routes/public/ListYourProperty';
 import { Home } from './routes/public/Home';
 import { Properties } from './routes/public/Properties';
 import { PropertyDetail } from './routes/public/PropertyDetail';
@@ -37,6 +47,7 @@ const router = createBrowserRouter([
   { path: '/properties/:slug', element: <PropertyDetail /> },
   { path: '/about-badges', element: <AboutBadges /> },
   { path: '/credits', element: <Credits /> },
+  { path: '/list-your-property', element: <ListYourProperty /> },
   {
     element: (
       <RequireRole>
@@ -62,6 +73,10 @@ const router = createBrowserRouter([
         path: '/broker/reviews/credentials/:id',
         element: only(['BROKER'], <ReviewCredential />),
       },
+      {
+        path: '/broker/reviews/documents/:id',
+        element: only(['BROKER'], <ReviewDocument />),
+      },
       { path: '/broker/team', element: only(['BROKER'], <Team />) },
       { path: '/broker/activity', element: only(['BROKER'], <Activity />) },
       { path: '/broker/listings', element: only(['BROKER'], <Listings />) },
@@ -72,6 +87,28 @@ const router = createBrowserRouter([
 
       { path: '/salesperson', element: only(['SALES_PERSON'], <SalespersonHome />) },
       { path: '/salesperson/listings', element: only(['SALES_PERSON'], <Listings />) },
+
+      {
+        path: '/broker/reviews/listings/:id',
+        element: only(['BROKER'], <ReviewListing />),
+      },
+      // Seller requests (SPEC §7.6): agents work their own; admin and broker read all.
+      ...(
+        [
+          ['/admin', 'COMPANY_ADMIN'],
+          ['/broker', 'BROKER'],
+          ['/manager', 'SALES_MANAGER'],
+          ['/salesperson', 'SALES_PERSON'],
+        ] as const
+      ).flatMap(([base, role]) => [
+        { path: `${base}/sellers`, element: only([role], <SellerRequests />) },
+        { path: `${base}/sellers/:id`, element: only([role], <SellerRequestDetail />) },
+        { path: `${base}/leads`, element: only([role], <Leads />) },
+        { path: `${base}/leads/:id`, element: only([role], <LeadDetail />) },
+        { path: `${base}/visits`, element: only([role], <Visits />) },
+        { path: `${base}/clients`, element: only([role], <Clients />) },
+        { path: `${base}/clients/:id`, element: only([role], <ClientDetail />) },
+      ]),
 
       { path: '/account', element: <Account /> },
     ],

@@ -11,3 +11,9 @@ minio-data/
 .claude/settings.local.json
 .vscode/*
 !.vscode/settings.json
+
+# Tesseract language data (downloaded on first OCR run)
+.cache/
+
+# Local debug scripts
+apps/api/.dbg/

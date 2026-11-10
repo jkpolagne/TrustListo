@@ -8,9 +8,10 @@ import { processListingPhoto } from '../../lib/photos';
 import { prisma } from '../../lib/prisma';
 import { firmScope } from '../../lib/scope';
 import { objectKey, presignedGet, putObject } from '../../lib/storage';
-import { singleFile } from '../../lib/upload';
+import { requireDocumentFile, singleFile } from '../../lib/upload';
 import { requireRole } from '../../middleware/auth';
 import { HttpError, notFoundError } from '../../middleware/errorHandler';
+import { queueDocument } from '../docai/pipeline';
 
 /**
  * Developers → projects → units (SPEC §7.5). CompanyAdmin edits; Broker, Sales Manager and
@@ -91,17 +92,107 @@ const projectSelect = {
   _count: { select: { properties: true } },
 } satisfies Prisma.ProjectSelect;
 
+/** The most recent License to Sell upload per project, so the admin sees where it stands. */
+async function latestLtsUploads(firmId: string, projectIds: string[]) {
+  const docs = await prisma.document.findMany({
+    where: { firmId, ownerType: 'PROJECT', ownerId: { in: projectIds } },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      ownerId: true,
+      aiStatus: true,
+      reviewStatus: true,
+      reviewNote: true,
+      flags: true,
+      createdAt: true,
+    },
+  });
+  const latest = new Map<string, (typeof docs)[number]>();
+  for (const d of docs) if (!latest.has(d.ownerId)) latest.set(d.ownerId, d);
+  return latest;
+}
+
 catalogRouter.get('/projects', async (req, res) => {
+  const scope = firmScope(req.user!);
   const projects = await prisma.project.findMany({
-    where: firmScope(req.user!),
+    where: scope,
     orderBy: [{ developer: { name: 'asc' } }, { name: 'asc' }],
     select: projectSelect,
   });
-  const points = await getPoints(
-    'Project',
-    projects.map((p) => p.id),
-  );
-  res.json({ data: projects.map((p) => ({ ...p, location: points.get(p.id) ?? null })) });
+  const ids = projects.map((p) => p.id);
+  const points = await getPoints('Project', ids);
+  const uploads = await latestLtsUploads(scope.firmId, ids);
+  res.json({
+    data: projects.map((p) => {
+      const { ownerId: _owner, ...latestLts } = uploads.get(p.id) ?? { ownerId: '' };
+      return {
+        ...p,
+        location: points.get(p.id) ?? null,
+        latestLts: uploads.has(p.id) ? latestLts : null,
+      };
+    }),
+  });
+});
+
+/**
+ * Upload a License to Sell (SPEC §7.5, §13). Module 1 reads it in the background; a broker
+ * approves it, which verifies every unit of the project. Uploading a renewal doesn't touch
+ * the current approved license until the broker approves the new one.
+ */
+catalogRouter.post('/projects/:id/lts', adminOnly, singleFile('file'), async (req, res) => {
+  const file = requireDocumentFile(req.file);
+  const { firmId } = firmScope(req.user!);
+  const project = await prisma.project.findFirst({ where: { id: id(req.params.id), firmId } });
+  if (!project) throw notFoundError();
+  const waiting = await prisma.document.findFirst({
+    where: {
+      firmId,
+      ownerType: 'PROJECT',
+      ownerId: project.id,
+      reviewStatus: { in: ['PENDING_AI', 'NEEDS_ATTENTION', 'READY_FOR_REVIEW'] },
+    },
+  });
+  if (waiting) {
+    throw new HttpError(
+      409,
+      'LTS_UNDER_REVIEW',
+      'A license for this project is already waiting for the broker. Wait for the decision first.',
+    );
+  }
+
+  const storageKey = objectKey(firmId, 'projects', project.id, file.mime);
+  await putObject(storageKey, file.buffer, file.mime);
+  const doc = await prisma.$transaction(async (tx) => {
+    const d = await tx.document.create({
+      data: {
+        firmId,
+        ownerType: 'PROJECT',
+        ownerId: project.id,
+        declaredType: 'LICENSE_TO_SELL',
+        storageKey,
+        mimeType: file.mime,
+        sizeBytes: file.size,
+        sha256: file.sha256,
+        uploadedById: req.user!.id,
+      },
+    });
+    if (project.ltsStatus !== 'APPROVED') {
+      await tx.project.update({ where: { id: project.id }, data: { ltsStatus: 'PENDING_AI' } });
+    }
+    await audit(
+      req,
+      {
+        action: 'LTS_UPLOADED',
+        entityType: 'Project',
+        entityId: project.id,
+        after: { documentId: d.id },
+      },
+      tx,
+    );
+    return d;
+  });
+  queueDocument(doc.id);
+  res.status(201).json({ id: doc.id, aiStatus: doc.aiStatus, reviewStatus: doc.reviewStatus });
 });
 
 const projectBody = z.object({
@@ -321,10 +412,20 @@ catalogRouter.post('/properties/:id/publish', adminOnly, async (req, res) => {
   }
 
   // Reuse the broker approval already granted to sibling units of this project, if any.
-  const sibling = await prisma.propertyBadge.findFirst({
-    where: { type: 'LTS_VERIFIED', property: { projectId: project.id } },
-    select: { grantedById: true },
-  });
+  // If the project had no units back then, credit the broker who approved the license.
+  const sibling =
+    (await prisma.propertyBadge.findFirst({
+      where: { type: 'LTS_VERIFIED', property: { projectId: project.id } },
+      select: { grantedById: true },
+    })) ??
+    (await prisma.project
+      .findUnique({
+        where: { id: project.id },
+        select: { ltsDocument: { select: { reviewedById: true } } },
+      })
+      .then((p) =>
+        p?.ltsDocument?.reviewedById ? { grantedById: p.ltsDocument.reviewedById } : null,
+      ));
 
   await prisma.$transaction(async (tx) => {
     await tx.property.update({

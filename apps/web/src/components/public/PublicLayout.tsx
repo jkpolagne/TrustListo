@@ -8,6 +8,7 @@ import { Logo } from '../Logo';
 const nav = [
   { to: '/properties', label: 'Browse homes' },
   { to: '/about-badges', label: 'What badges mean' },
+  { to: '/list-your-property', label: 'List your property' },
 ];
 
 export function PublicLayout({ children, wide = false }: { children: ReactNode; wide?: boolean }) {

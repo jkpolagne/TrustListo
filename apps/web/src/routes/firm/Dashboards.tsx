@@ -5,7 +5,7 @@ import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
 import { Avatar, ButtonLink, Card, CardHeader, EmptyState, StatCard } from '../../components/ui';
 import { useMe } from '../../lib/auth';
-import { useReviewQueue } from '../../lib/reviews';
+import { aiSummary, docTypeName, useReviewQueue, type QueuedDocument } from '../../lib/reviews';
 import { credentialState, fullName, useTeam, type TeamMember } from '../../lib/team';
 
 const greet = (name?: string) => (name ? `Good to see you, ${name}` : 'Overview');
@@ -132,18 +132,28 @@ export function BrokerHome() {
   const team = useTeam();
   const work = team.data ? credentialWork(team.data) : null;
   const items = queue.data?.credentials ?? [];
+  const docs = queue.data?.documents ?? [];
+  const listings = queue.data?.listings ?? [];
   const ready = items.filter((c) => c.status !== 'PENDING_AI');
-  const checking = items.length - ready.length;
+  const docsReady = docs.filter((d) => d.reviewStatus !== 'PENDING_AI');
+  const checking = items.length - ready.length + docs.length - docsReady.length;
+  const attention =
+    ready.filter((c) => c.status === 'NEEDS_ATTENTION').length +
+    docsReady.filter((d) => d.reviewStatus === 'NEEDS_ATTENTION').length;
 
   return (
     <>
       <PageHeader
         title="Review queue"
-        intro={`Credentials that need your decision${me?.firm ? ` at ${me.firm.name}` : ''}. Only a licensed broker can approve them.`}
+        intro={`Documents and credentials waiting for your decision${me?.firm ? ` at ${me.firm.name}` : ''}. The AI reads and flags them; only a licensed broker approves.`}
       />
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Ready for review" value={ready.length} />
-        <StatCard label="Still being checked" value={checking} />
+        <StatCard
+          label="Waiting for you"
+          value={ready.length + docsReady.length}
+          hint={attention ? `${attention} flagged by the AI` : undefined}
+        />
+        <StatCard label="Being read by the AI" value={checking} />
         <StatCard
           label="Expired credentials"
           value={work?.expired.length ?? 0}
@@ -151,20 +161,99 @@ export function BrokerHome() {
         />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <CardHeader title="Ready for your review" description="Oldest first." />
-          <PersonList
-            rows={ready.map((c) => ({ person: c.user, c }))}
-            empty="Your queue is clear."
-            linkTo={(r) => `/broker/reviews/credentials/${r.c.id}`}
-          />
-        </Card>
-        <Card>
+        <div className="space-y-6">
+          {listings.length > 0 && (
+            <Card>
+              <CardHeader
+                title="Listings waiting to go live"
+                description="Seller listings your agents sent. Approve the documents, then publish."
+              />
+              <ul className="-mx-2 divide-y divide-line">
+                {listings.map((l) => (
+                  <li key={l.id}>
+                    <Link
+                      to={`/broker/reviews/listings/${l.id}`}
+                      className="flex items-center gap-3 rounded-lg px-2 py-3 hover:bg-canvas"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{l.title}</p>
+                        <p className="text-xs text-muted">
+                          {l.sellerRequest?.sellerName}, {l.barangay}. {l.documentsApproved} of{' '}
+                          {l.documentsTotal} documents approved.
+                        </p>
+                      </div>
+                      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+          <Card>
+            <CardHeader
+              title="Listing and project documents"
+              description="Licenses to sell and seller documents, grouped by property. Oldest first."
+            />
+            <DocumentGroups docs={docs} />
+          </Card>
+          <Card>
+            <CardHeader title="Consultant credentials" description="Oldest first." />
+            <PersonList
+              rows={ready.map((c) => ({ person: c.user, c }))}
+              empty="No credentials are waiting."
+              linkTo={(r) => `/broker/reviews/credentials/${r.c.id}`}
+            />
+          </Card>
+        </div>
+        <Card className="self-start">
           <CardHeader title="Expired" />
           <PersonList rows={work?.expired ?? []} empty="No expired credentials." />
         </Card>
       </div>
     </>
+  );
+}
+
+/** Queue documents grouped by what they're for: one project, or one seller's property. */
+function DocumentGroups({ docs }: { docs: QueuedDocument[] }) {
+  if (docs.length === 0) return <EmptyState>No documents are waiting.</EmptyState>;
+  const groups = new Map<string, QueuedDocument[]>();
+  for (const d of docs) groups.set(d.ownerId, [...(groups.get(d.ownerId) ?? []), d]);
+  return (
+    <div className="space-y-5">
+      {[...groups.values()].map((group) => {
+        const owner = group[0]!.owner;
+        return (
+          <section key={group[0]!.ownerId}>
+            <h3 className="text-sm font-bold">{owner.title}</h3>
+            {owner.subtitle && <p className="text-xs text-muted">{owner.subtitle}</p>}
+            <ul className="-mx-2 mt-1.5 divide-y divide-line">
+              {group.map((d) => {
+                const s = aiSummary(d);
+                return (
+                  <li key={d.id}>
+                    <Link
+                      to={`/broker/reviews/documents/${d.id}`}
+                      className="flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-canvas"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold">{docTypeName(d.declaredType)}</p>
+                        <p
+                          className={`truncate text-xs ${s.tone === 'danger' ? 'text-flag' : 'text-muted'}`}
+                        >
+                          {s.text}
+                        </p>
+                      </div>
+                      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

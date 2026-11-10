@@ -15,6 +15,18 @@ import { publicRouter } from './modules/marketplace/public.routes';
 import { catalogRouter } from './modules/properties/catalog.routes';
 import { settingsRouter } from './modules/settings/settings.routes';
 import { reviewsRouter } from './modules/reviews/reviews.routes';
+import { sellerPublicRouter } from './modules/sellers/public.routes';
+import { sellerRequestsRouter } from './modules/sellers/requests.routes';
+import { inquiriesRouter } from './modules/leads/inquiries.routes';
+import { leadsPublicRouter } from './modules/leads/public.routes';
+import { visitsRouter } from './modules/leads/visits.routes';
+import {
+  clientsRouter,
+  conversionRouter,
+  paymentsRouter,
+  requirementsRouter,
+} from './modules/clients/clients.routes';
+import { commissionsRouter } from './modules/commissions/commissions.routes';
 import { usersRouter } from './modules/users/users.routes';
 
 export function createApp() {
@@ -41,6 +53,8 @@ export function createApp() {
 
   v1.use('/auth', authRouter);
   v1.use('/public', publicRouter); // marketplace, no login
+  v1.use('/public', sellerPublicRouter); // agent picker, consultant profiles, seller form
+  v1.use('/public', leadsPublicRouter); // consultant pool per listing, buyer inquiries
   // Everything below needs a signed-in user.
   v1.use('/admin', requireAuth, adminRouter);
   v1.use('/users', requireAuth, usersRouter);
@@ -49,6 +63,14 @@ export function createApp() {
   v1.use('/documents', requireAuth, documentsRouter);
   v1.use('/catalog', requireAuth, catalogRouter); // developers, projects, units
   v1.use('/settings', requireAuth, settingsRouter);
+  v1.use('/seller-requests', requireAuth, sellerRequestsRouter);
+  v1.use('/inquiries', requireAuth, inquiriesRouter);
+  v1.use('/inquiries', requireAuth, conversionRouter); // receipt + convert to client
+  v1.use('/clients', requireAuth, clientsRouter);
+  v1.use('/requirements', requireAuth, requirementsRouter);
+  v1.use('/payments', requireAuth, paymentsRouter);
+  v1.use(commissionsRouter); // /commissions, /tranches, /vouchers (guards inside)
+  v1.use('/visits', requireAuth, visitsRouter);
 
   app.use('/api/v1', v1);
   app.use(notFound);

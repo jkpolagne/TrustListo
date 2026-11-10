@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROLE_LABEL } from '@trustlisto/shared';
@@ -8,7 +7,11 @@ import { CredentialBadge } from '../../components/CredentialBadge';
 import { Field, FormError, PrimaryButton } from '../../components/Form';
 import { Avatar, Badge, Button, ButtonLink, Card, CardHeader } from '../../components/ui';
 import { api } from '../../lib/api';
-import { useCredentialReview, useDocumentUrl, type CredentialReview } from '../../lib/reviews';
+import { DocumentViewer } from '../../components/review/DocumentViewer';
+import { FieldSheet } from '../../components/review/FieldSheet';
+import { FlagList } from '../../components/review/FlagList';
+import { OcrTranscript } from '../../components/review/OcrTranscript';
+import { useCredentialReview, type CredentialReview, type FieldRow } from '../../lib/reviews';
 import { CREDENTIAL_NAME, fullName } from '../../lib/team';
 
 const back = { to: '/broker', label: 'Review queue' };
@@ -16,7 +19,7 @@ const back = { to: '/broker', label: 'Review queue' };
 export function ReviewCredential() {
   const { id = '' } = useParams();
   const review = useCredentialReview(id);
-  const docUrl = useDocumentUrl(review.data?.document?.id);
+  const [highlight, setHighlight] = useState<string | null>(null);
 
   if (review.isPending) return null;
   if (review.isError || !review.data) {
@@ -37,49 +40,20 @@ export function ReviewCredential() {
       <PageHeader title={`Review ${CREDENTIAL_NAME[c.type]}`} back={back} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,1fr)]">
-        <Card padded={false} className="min-w-0 self-start overflow-hidden">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3">
-            <p className="text-sm font-semibold">Uploaded document</p>
-            {docUrl.data && (
-              <a
-                href={docUrl.data.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-muted hover:bg-canvas hover:text-ink"
-              >
-                Open full size <ExternalLink aria-hidden className="size-3.5" />
-              </a>
-            )}
-          </div>
-          <div className="bg-canvas p-4">
-            {!c.document && (
-              <p className="py-10 text-center text-sm text-muted">
-                No file was uploaded with this credential.
-              </p>
-            )}
-            {c.document && !docUrl.data && (
-              <div className="grid h-80 place-items-center rounded-lg bg-line/40 text-sm text-muted motion-safe:animate-pulse">
-                {docUrl.isError
-                  ? "The document couldn't be loaded. Reload the page."
-                  : 'Loading document…'}
-              </div>
-            )}
-            {docUrl.data &&
-              (docUrl.data.mimeType === 'application/pdf' ? (
-                <iframe
-                  src={docUrl.data.url}
-                  title="Credential document"
-                  className="h-[70vh] w-full rounded-lg bg-paper"
-                />
-              ) : (
-                <img
-                  src={docUrl.data.url}
-                  alt={`${CREDENTIAL_NAME[c.type]} uploaded for ${fullName(c.user)}`}
-                  className="mx-auto max-h-[70vh] rounded-lg shadow-sm"
-                />
-              ))}
-          </div>
-        </Card>
+        <DocumentViewer
+          documentId={c.document?.id}
+          alt={`${CREDENTIAL_NAME[c.type]} uploaded for ${fullName(c.user)}`}
+          below={
+            c.document &&
+            c.status !== 'PENDING_AI' && (
+              <OcrTranscript
+                text={c.document.ocrText}
+                confidence={c.document.ocrConfidence}
+                highlight={highlight}
+              />
+            )
+          }
+        />
 
         <div className="space-y-6">
           <Card>
@@ -104,7 +78,7 @@ export function ReviewCredential() {
             </dl>
           </Card>
 
-          <AutomaticCheck review={c} />
+          <AutomaticCheck review={c} onFocusValue={setHighlight} />
           {decided ? (
             c.rejectReason && (
               <Card>
@@ -122,9 +96,31 @@ export function ReviewCredential() {
   );
 }
 
-function AutomaticCheck({ review }: { review: CredentialReview }) {
+const CREDENTIAL_FIELDS: [key: string, label: string][] = [
+  ['fullName', 'Name'],
+  ['registrationNumber', 'Registration no.'],
+  ['validUntil', 'Valid until'],
+];
+
+function AutomaticCheck({
+  review,
+  onFocusValue,
+}: {
+  review: CredentialReview;
+  onFocusValue: (v: string | null) => void;
+}) {
   const flags = review.document?.flags ?? [];
   const pending = review.status === 'PENDING_AI';
+  const extracted = review.document?.extracted ?? {};
+  const rows: FieldRow[] = CREDENTIAL_FIELDS.map(([key, label]) => ({
+    key,
+    label,
+    required: true,
+    value: extracted[key]?.value ?? null,
+    confidence: extracted[key]?.confidence ?? 0,
+    edited: false,
+    aiValue: null,
+  }));
   return (
     <Card>
       <CardHeader
@@ -141,29 +137,29 @@ function AutomaticCheck({ review }: { review: CredentialReview }) {
           )
         }
       />
-      {flags.length > 0 && (
-        <ul className="mb-4 space-y-2">
-          {flags.map((f, i) => (
-            <li
-              key={i}
-              className={`rounded-lg px-3 py-2.5 text-sm ${f.severity === 'BLOCKER' ? 'bg-flag-pale text-flag' : 'bg-canvas'}`}
-            >
-              <span className="font-semibold">
-                {f.severity === 'BLOCKER'
-                  ? 'Blocking issue: '
-                  : f.severity === 'WARNING'
-                    ? 'Check this: '
-                    : 'Note: '}
-              </span>
-              {f.message}
-            </li>
-          ))}
-        </ul>
+      {pending ? (
+        <p className="text-sm text-muted">
+          The AI is reading this file. It takes a few seconds; this page updates by itself.
+        </p>
+      ) : (
+        <>
+          {flags.length > 0 && (
+            <div className="mb-5">
+              <FlagList flags={flags} />
+            </div>
+          )}
+          <p className="mb-3 text-sm text-muted">
+            What the AI read. Compare it with the file before you decide.
+          </p>
+          <FieldSheet
+            fields={rows}
+            values={{}}
+            readOnly
+            onChange={() => {}}
+            onFocusValue={onFocusValue}
+          />
+        </>
       )}
-      <p className="text-sm text-muted">
-        The automatic check doesn't read text from the document yet. Compare the name, number and
-        expiry date with the file yourself.
-      </p>
     </Card>
   );
 }
@@ -173,7 +169,8 @@ function Decide({ review }: { review: CredentialReview }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [number, setNumber] = useState(review.numberEntered);
-  const [expiresAt, setExpiresAt] = useState('');
+  // Start from the expiry the AI read; the broker confirms it against the file.
+  const [expiresAt, setExpiresAt] = useState(review.document?.extracted?.validUntil?.value ?? '');
   const [note, setNote] = useState('');
   const [reason, setReason] = useState('');
   const hasBlocker = (review.document?.flags ?? []).some((f) => f.severity === 'BLOCKER');
@@ -181,7 +178,7 @@ function Decide({ review }: { review: CredentialReview }) {
   const done = () => {
     // Drop the decided item from the queue right away, then refresh from the server.
     qc.setQueryData<{ credentials: CredentialReview[] }>(['reviews', 'queue'], (q) =>
-      q ? { credentials: q.credentials.filter((c) => c.id !== review.id) } : q,
+      q ? { ...q, credentials: q.credentials.filter((c) => c.id !== review.id) } : q,
     );
     qc.invalidateQueries({ queryKey: ['reviews'] });
     qc.invalidateQueries({ queryKey: ['users'] });
@@ -244,7 +241,11 @@ function Decide({ review }: { review: CredentialReview }) {
               onChange={(e) => setNumber(e.target.value)}
             />
           </Field>
-          <Field label="Valid until" htmlFor="exp" hint="As printed on the document.">
+          <Field
+            label="Valid until"
+            htmlFor="exp"
+            hint="Filled in from what the AI read. Check it against the document."
+          >
             <input
               id="exp"
               type="date"

@@ -1,4 +1,5 @@
-import { ExternalLink } from 'lucide-react';
+import { Check, ExternalLink, Link2 } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPeso } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
@@ -12,6 +13,7 @@ import {
   type ListingStatus,
 } from '../../lib/catalog';
 import { TYPE_LABEL } from '../../lib/marketplace';
+import { referralLink } from '../../lib/paths';
 
 const peso = (v: string) => formatPeso(v).replace(/\.00$/, '');
 const date = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
@@ -132,7 +134,10 @@ export function Listings() {
                     <td className="px-5 py-3 text-right tabular-nums text-muted">
                       {date.format(new Date(u.updatedAt))}
                     </td>
-                    <td className="px-5 py-3 text-right">
+                    <td className="px-5 py-3 text-right whitespace-nowrap">
+                      {u.status === 'LIVE' && me?.referralCode && (
+                        <CopyReferral slug={u.slug} code={me.referralCode} title={u.title} />
+                      )}
                       {u.status === 'LIVE' && (
                         <a
                           href={`/properties/${u.slug}`}
@@ -154,5 +159,32 @@ export function Listings() {
         )}
       </Card>
     </>
+  );
+}
+
+/**
+ * Copies this consultant's referral link for a listing (SPEC §10.7). A buyer who inquires
+ * through it is assigned to them automatically, without the picker.
+ */
+function CopyReferral({ slug, code, title }: { slug: string; code: string; title: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await navigator.clipboard.writeText(referralLink(slug, code));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="mr-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted hover:bg-canvas hover:text-ink"
+    >
+      {copied ? (
+        <Check aria-hidden className="size-3.5" />
+      ) : (
+        <Link2 aria-hidden className="size-3.5" />
+      )}
+      {copied ? 'Copied' : 'Copy my link'}
+      <span className="sr-only"> for {title}</span>
+    </button>
   );
 }

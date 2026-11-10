@@ -44,6 +44,7 @@ model Firm {
   loanTermYears      Int     @default(30)
   loanDownpaymentPct Decimal @default(10) @db.Decimal(6, 3)
   loanIncomeRatioPct Decimal @default(35) @db.Decimal(6, 3)
+  withholdingPct     Decimal @default(0) @db.Decimal(6, 3) // OPEN-6: withheld from each voucher share
 }
 
 model User {
@@ -369,6 +370,7 @@ model Client {
   tcp               Decimal         @db.Decimal(14, 2) // total contract price (may differ from list price)
   saleType          SaleType
   reservationPaidAt DateTime
+  downpaymentAmount Decimal?        @db.Decimal(14, 2) // required DP (for DP-based tranches); null for cash
   status            ClientStatus    @default(ACTIVE)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -604,6 +606,12 @@ model CommissionTranche {
   transmittalDocumentId String?
   transmittalAmount     Decimal?           @db.Decimal(14, 2)
   awaitingSince         DateTime? // for aging
+  // Rules copied from the template at conversion, so later template edits never change a live deal.
+  trigger               TrancheTrigger?
+  triggerValue          Decimal?           @db.Decimal(6, 3)
+  requiredStage         RequirementStage?
+  requiresTransmittal   Boolean            @default(true)
+  periodMonth           String? // MONTHLY tranches: "2026-11"
   voucher               CommissionVoucher?
 
   @@index([firmId, status])

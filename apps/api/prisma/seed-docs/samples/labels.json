@@ -1,0 +1,366 @@
+{
+  "today": "2026-11-08",
+  "samples": [
+    {
+      "file": "title-santos.png",
+      "declaredType": "LAND_TITLE",
+      "type": "LAND_TITLE",
+      "fields": {
+        "titleNumber": "T-2018-04417",
+        "ownerName": "MARIA LOURDES S. SANTOS",
+        "lotNumber": "12",
+        "areaSqm": "240",
+        "encumbrances": "None found"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "title-santos-photo.jpg",
+      "declaredType": "LAND_TITLE",
+      "type": "LAND_TITLE",
+      "fields": {
+        "titleNumber": "T-2018-04417",
+        "ownerName": "MARIA LOURDES S. SANTOS",
+        "lotNumber": "12",
+        "areaSqm": "240",
+        "encumbrances": "None found"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "title-villanueva.png",
+      "declaredType": "LAND_TITLE",
+      "type": "LAND_TITLE",
+      "fields": {
+        "titleNumber": "T-2015-01932",
+        "ownerName": "ROGELIO C. VILLANUEVA",
+        "lotNumber": "7",
+        "areaSqm": "320",
+        "encumbrances": "MORTGAGE (Entry No. 5120)"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Roberto Villanueva",
+          "titleOwner": "ROGELIO C. VILLANUEVA",
+          "titleAreaSqm": 320
+        }
+      },
+      "flags": ["OWNER_MISMATCH", "ENCUMBRANCE_FOUND"]
+    },
+    {
+      "file": "taxdec-santos.png",
+      "declaredType": "TAX_DECLARATION",
+      "type": "TAX_DECLARATION",
+      "fields": {
+        "tdNumber": "2024-05-0123",
+        "ownerName": "MARIA LOURDES S. SANTOS",
+        "lotNumber": "12",
+        "areaSqm": "240",
+        "assessedValue": "288000.00"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "taxdec-santos-photo.jpg",
+      "declaredType": "TAX_DECLARATION",
+      "type": "TAX_DECLARATION",
+      "fields": {
+        "tdNumber": "2024-05-0123",
+        "ownerName": "MARIA LOURDES S. SANTOS",
+        "lotNumber": "12",
+        "areaSqm": "240",
+        "assessedValue": "288000.00"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "taxdec-villanueva.png",
+      "declaredType": "TAX_DECLARATION",
+      "type": "TAX_DECLARATION",
+      "fields": {
+        "tdNumber": "2023-05-0877",
+        "ownerName": "ROGELIO C. VILLANUEVA",
+        "lotNumber": "7",
+        "areaSqm": "300",
+        "assessedValue": "300000.00"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Roberto Villanueva",
+          "titleOwner": "ROGELIO C. VILLANUEVA",
+          "titleAreaSqm": 320
+        }
+      },
+      "flags": ["AREA_MISMATCH"]
+    },
+    {
+      "file": "rpt-santos.png",
+      "declaredType": "RPT_RECEIPT",
+      "type": "RPT_RECEIPT",
+      "fields": {
+        "orNumber": "7845123",
+        "paymentDate": "2026-01-15",
+        "amount": "5760.00",
+        "yearCovered": "2026",
+        "quarterCovered": "4"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "rpt-santos-photo.jpg",
+      "declaredType": "RPT_RECEIPT",
+      "type": "RPT_RECEIPT",
+      "fields": {
+        "orNumber": "7845123",
+        "paymentDate": "2026-01-15",
+        "amount": "5760.00",
+        "yearCovered": "2026",
+        "quarterCovered": "4"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "rpt-villanueva.png",
+      "declaredType": "RPT_RECEIPT",
+      "type": "RPT_RECEIPT",
+      "fields": {
+        "orNumber": "6612004",
+        "paymentDate": "2024-02-10",
+        "amount": "6000.00",
+        "yearCovered": "2024",
+        "quarterCovered": "4"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Roberto Villanueva",
+          "titleOwner": "ROGELIO C. VILLANUEVA",
+          "titleAreaSqm": 320
+        }
+      },
+      "flags": ["TAX_DELINQUENT"]
+    },
+    {
+      "file": "id-santos.png",
+      "declaredType": "SELLER_ID",
+      "type": "VALID_ID",
+      "fields": {
+        "fullName": "SANTOS, MARIA LOURDES SALCEDO",
+        "idNumber": "N01-12-345678",
+        "birthDate": "1985-03-14",
+        "expiryDate": "2029-03-14"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "id-santos-photo.jpg",
+      "declaredType": "SELLER_ID",
+      "type": "VALID_ID",
+      "fields": {
+        "fullName": "SANTOS, MARIA LOURDES SALCEDO",
+        "idNumber": "N01-12-345678",
+        "birthDate": "1985-03-14",
+        "expiryDate": "2029-03-14"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Maria Lourdes Santos",
+          "titleOwner": "MARIA LOURDES S. SANTOS",
+          "titleAreaSqm": 240
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "id-villanueva.png",
+      "declaredType": "SELLER_ID",
+      "type": "VALID_ID",
+      "fields": {
+        "fullName": "ROBERTO CRUZ VILLANUEVA",
+        "idNumber": "1234-5678-9012-3456",
+        "birthDate": "1979-11-02"
+      },
+      "context": {
+        "listing": {
+          "sellerName": "Roberto Villanueva",
+          "titleOwner": "ROGELIO C. VILLANUEVA",
+          "titleAreaSqm": 320
+        }
+      },
+      "flags": ["OWNER_MISMATCH"]
+    },
+    {
+      "file": "lts-camella.png",
+      "declaredType": "LICENSE_TO_SELL",
+      "type": "LICENSE_TO_SELL",
+      "fields": {
+        "ltsNumber": "LTS-R5-2024-0101",
+        "projectName": "Camella Naga",
+        "developerName": "Vista Land (Camella)",
+        "issueDate": "2024-03-01",
+        "expiryDate": "2028-05-31"
+      },
+      "context": {
+        "project": {
+          "name": "Camella Naga",
+          "developerName": "Vista Land (Camella)"
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "lts-parkview.pdf",
+      "declaredType": "LICENSE_TO_SELL",
+      "type": "LICENSE_TO_SELL",
+      "fields": {
+        "ltsNumber": "LTS-R5-2022-0333",
+        "projectName": "Parkview Homes Pili",
+        "developerName": "Parkview Land Inc.",
+        "issueDate": "2022-02-14",
+        "expiryDate": "2027-01-15"
+      },
+      "context": {
+        "project": {
+          "name": "Parkview Homes Pili",
+          "developerName": "Parkview Land Inc."
+        }
+      },
+      "flags": ["LTS_EXPIRING_SOON"]
+    },
+    {
+      "file": "lts-futura-photo.jpg",
+      "declaredType": "LICENSE_TO_SELL",
+      "type": "LICENSE_TO_SELL",
+      "fields": {
+        "ltsNumber": "LTS-R5-2020-0042",
+        "projectName": "Futura Homes Naga",
+        "developerName": "Futura Homes",
+        "issueDate": "2020-06-01",
+        "expiryDate": "2025-12-31"
+      },
+      "context": {
+        "project": {
+          "name": "Futura Homes Naga",
+          "developerName": "Futura Homes"
+        }
+      },
+      "flags": ["LTS_EXPIRED"]
+    },
+    {
+      "file": "prc-aquino.png",
+      "declaredType": "PRC_ID",
+      "type": "PRC_ID",
+      "fields": {
+        "fullName": "RAMON BELTRAN AQUINO",
+        "registrationNumber": "0012345",
+        "validUntil": "2028-07-20"
+      },
+      "context": {
+        "credential": {
+          "holderName": "Ramon Aquino",
+          "numberEntered": "PRC-0012345"
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "prc-reyes-photo.jpg",
+      "declaredType": "PRC_ID",
+      "type": "PRC_ID",
+      "fields": {
+        "fullName": "CORAZON DIAZ REYES",
+        "registrationNumber": "0023456",
+        "validUntil": "2026-01-10"
+      },
+      "context": {
+        "credential": {
+          "holderName": "Corazon Reyes",
+          "numberEntered": "PRC-0023456"
+        }
+      },
+      "flags": ["CREDENTIAL_EXPIRED"]
+    },
+    {
+      "file": "dhsud-mendoza.png",
+      "declaredType": "DHSUD_CERT",
+      "type": "DHSUD_CERT",
+      "fields": {
+        "fullName": "PAOLO MENDOZA",
+        "registrationNumber": "DHSUD-R5-1001",
+        "validUntil": "2027-04-01"
+      },
+      "context": {
+        "credential": {
+          "holderName": "Paolo Mendoza",
+          "numberEntered": "DHSUD-R5-1001"
+        }
+      },
+      "flags": []
+    },
+    {
+      "file": "dhsud-navarro.png",
+      "declaredType": "DHSUD_CERT",
+      "type": "DHSUD_CERT",
+      "fields": {
+        "fullName": "KRISTINE NAVARRO",
+        "registrationNumber": "DHSUD-R5-2099",
+        "validUntil": "2027-09-15"
+      },
+      "context": {
+        "credential": {
+          "holderName": "Kris Navarro",
+          "numberEntered": "DHSUD-R5-2001"
+        }
+      },
+      "flags": ["NAME_MISMATCH", "NUMBER_MISMATCH"]
+    }
+  ]
+}

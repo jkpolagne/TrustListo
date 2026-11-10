@@ -1,15 +1,19 @@
-// M2: consultants, hierarchy, credential upload (stub AI), broker review.
-import { readdirSync, readFileSync } from 'node:fs';
+// M2: consultants, hierarchy, credential upload, broker review.
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { prisma } from '../src/lib/prisma';
-import { checkCredential } from '../src/modules/docai/credentialStub';
+import { closeOcr } from '../src/modules/docai/ocr';
+import { processDocument } from '../src/modules/docai/pipeline';
 import { whenIdle } from '../src/modules/docai/queue';
 import request from 'supertest';
 import { app, signIn } from './helpers';
 
-afterAll(() => prisma.$disconnect());
+afterAll(async () => {
+  await closeOcr();
+  await prisma.$disconnect();
+});
 
 let png: Buffer;
 beforeAll(async () => {
@@ -345,28 +349,30 @@ describe('broker review', () => {
 });
 
 describe('AI never approves (rule 1)', () => {
-  it('the credential check only ever suggests review states', async () => {
-    // Fresh uploads only, so seeded approvals aren't disturbed.
+  it('the pipeline only ever suggests review states', async () => {
+    // Undecided credentials only, so seeded approvals aren't disturbed.
     const creds = await prisma.credential.findMany({
-      where: {
-        status: { in: ['READY_FOR_REVIEW', 'NEEDS_ATTENTION'] },
-        numberEntered: { startsWith: 'DHSUD-R5-' },
-      },
+      where: { status: { notIn: ['APPROVED', 'REJECTED'] }, documentId: { not: null } },
       orderBy: { createdAt: 'desc' },
       take: 3,
     });
     expect(creds.length).toBeGreaterThan(0);
     for (const c of creds) {
-      const out = await checkCredential(c.id);
-      expect(['READY_FOR_REVIEW', 'NEEDS_ATTENTION']).toContain(out);
+      await processDocument(c.documentId!);
+      const after = await prisma.credential.findUniqueOrThrow({ where: { id: c.id } });
+      expect(['READY_FOR_REVIEW', 'NEEDS_ATTENTION']).toContain(after.status);
     }
   });
 
   it('no docai source file writes an APPROVED status', () => {
-    const dir = join(import.meta.dirname, '../src/modules/docai');
-    for (const f of readdirSync(dir)) {
-      const src = readFileSync(join(dir, f), 'utf8');
-      expect(src, f).not.toMatch(/['"`]APPROVED['"`]/);
+    const files = (dir: string): string[] =>
+      readdirSync(dir).flatMap((f) =>
+        statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : [join(dir, f)],
+      );
+    const all = files(join(import.meta.dirname, '../src/modules/docai'));
+    expect(all.length).toBeGreaterThan(10);
+    for (const f of all) {
+      expect(readFileSync(f, 'utf8'), f).not.toMatch(/['"`]APPROVED['"`]/);
     }
   });
 });

@@ -59,12 +59,7 @@ export function ConsultantDetail() {
             </p>
             <p className="text-sm text-muted">{m.email}</p>
           </div>
-          {m.referralCode && (
-            <div className="text-right">
-              <p className="text-xs text-muted">Referral code</p>
-              <p className="font-mono font-semibold">{m.referralCode}</p>
-            </div>
-          )}
+          {m.referralCode && <ReferralCode member={m} />}
         </div>
       </Card>
       <div className="grid gap-6 lg:grid-cols-2">
@@ -327,6 +322,57 @@ function Credentials({ member }: { member: TeamMember }) {
           </PrimaryButton>
         </form>
       </Card>
+    </div>
+  );
+}
+
+/**
+ * The consultant's referral code (SPEC §10.7). A new code stops old shared links from
+ * crediting them, e.g. if a link ended up somewhere it shouldn't.
+ */
+function ReferralCode({ member }: { member: TeamMember }) {
+  const invalidate = useInvalidateTeam();
+  const [confirming, setConfirming] = useState(false);
+  const regen = useMutation({
+    mutationFn: () => api(`/users/${member.id}/referral-code`, { method: 'POST' }),
+    onSuccess: () => {
+      setConfirming(false);
+      invalidate();
+    },
+  });
+  return (
+    <div className="text-right">
+      <p className="text-xs text-muted">Referral code</p>
+      <p className="font-mono font-semibold">{member.referralCode}</p>
+      {confirming ? (
+        <p className="mt-1 text-xs">
+          Old links will stop crediting {member.firstName}.{' '}
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => regen.mutate()}
+            disabled={regen.isPending}
+          >
+            {regen.isPending ? 'Changing…' : 'Change it'}
+          </button>{' '}
+          <button
+            type="button"
+            className="text-muted underline"
+            onClick={() => setConfirming(false)}
+          >
+            Keep
+          </button>
+        </p>
+      ) : (
+        <button
+          type="button"
+          className="mt-1 text-xs font-semibold text-muted underline hover:text-ink"
+          onClick={() => setConfirming(true)}
+        >
+          New code
+        </button>
+      )}
+      <FormError error={regen.error} />
     </div>
   );
 }

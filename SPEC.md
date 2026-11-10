@@ -175,7 +175,7 @@ Hierarchy: `SALES_PERSON.managerId → SALES_MANAGER`, `SALES_MANAGER.brokerId �
 | Referral link & referral leads | — | — | — | ✍ own | ✍ own |
 | Audit trail | — | 👁 | 👁 | — | — |
 
-> **Assumption:** the Broker "approval" queue covers both listing documents and buyer documents flagged by the AI. Buyer documents that the AI reads with no flags still need broker verification before they count toward a commission gate (see §10.4). **[OPEN-3]**
+> **Assumption:** the Broker "approval" queue covers both listing documents and buyer documents flagged by the AI. Buyer documents that the AI reads with no flags still need broker verification before they count toward a commission gate (see §10.4). **Decided 2026-11-08 (OPEN-3): broker only** — every buyer document, flagged or clean, is verified by a Broker.
 
 ### 5.3 Scoping rules (implement as middleware + service helpers)
 
@@ -732,7 +732,7 @@ Only `status = LIVE` properties of `ACTIVE` firms appear publicly.
 
 ### 7.3 Consultant picker (randomization)
 
-- Pool (developer listing): active `SALES_MANAGER` + `SALES_PERSON` users of the listing's firm. Brokers and CompanyAdmins are excluded. **[OPEN-1]** whether consultants without an approved PRC/DHSUD credential should appear.
+- Pool (developer listing): active `SALES_MANAGER` + `SALES_PERSON` users of the listing's firm. Brokers and CompanyAdmins are excluded. **Decided 2026-11-08 (OPEN-1):** only consultants with at least one broker-approved, unexpired PRC/DHSUD credential appear in either picker.
 - Pool (seller's agent picker): same roles across **all active firms**.
 - Order: Fisher–Yates shuffle with `crypto.randomInt` on every request. No caching of order. No sort by rating.
 - Card shows: photo, name, firm, badges, average rating (or "New"), completed sales.
@@ -767,7 +767,14 @@ Seller form → SellerListingRequest(NEW, agent chosen)
  → Agent's firm Broker approves → Property LIVE with earned badges   (LISTED)
 ```
 
-`hasTitle = false` → agent can still accept, but the listing cannot get `OWNERSHIP_VERIFIED` / `TITLE_CLEAN` and the broker sees a prominent warning. **[OPEN-2]** whether untitled properties may go live at all.
+**Decided 2026-11-08 (OPEN-2):** a property without a land title cannot go live. The public form tells an untitled seller that a title is required and does not submit the request; the broker can approve a listing only when its land title, tax declaration, RPT receipt and seller ID are all broker-approved.
+
+**Decided 2026-11-08 (M5 build):**
+- Firm endpoints live under `/seller-requests` (§13). Only the chosen agent accepts, declines (reason audited), uploads and submits; CompanyAdmin and Broker read all of the firm's requests.
+- One current document per type. A wrong upload is replaced only after the broker rejects it (uploads stay open while the listing is with the broker).
+- The agent writes the listing title/description and **must** place the map pin when submitting; the first submit creates the Property, later submits reuse it.
+- Broker "send back" (`/reviews/properties/:id/reject`) sets the Property to `REJECTED` and the request back to `DOCUMENTS_IN_PROGRESS`; the agent sees the reason and can resubmit.
+- `GET /public/agents` returns all pickable agents, shuffled per request; the page shows 6 at a time.
 
 ---
 
@@ -883,6 +890,14 @@ Side-by-side: document image (zoomable) | OCR text | extracted fields (editable 
 
 Expired badges are hidden automatically (computed on read).
 
+**Decided 2026-11-08 (M4 build):**
+- Flag severities: BLOCKER = `NAME_MISMATCH`/`OWNER_MISMATCH` below 0.80, `TYPE_MISMATCH` to another known type, `LTS_EXPIRED`, `CREDENTIAL_EXPIRED`, `ID_EXPIRED`. INFO = `LTS_EXPIRING_SOON`. Everything else is WARNING. Thresholds live in `apps/api/src/modules/docai/config.ts`.
+- Badges are recomputed from the broker-approved documents' final (broker-corrected) field values after every decision. Approving a flagged document with an override note does **not** grant a badge the facts don't support (e.g. owner mismatch → no Ownership Verified).
+- License to Sell upload: `POST /catalog/projects/:id/lts`, one pending upload per project. A renewal doesn't touch the currently approved license until the broker approves it; approval sets `ltsNumber`/`ltsExpiresAt` from the confirmed fields and grants `LTS_VERIFIED` to every unit.
+- Broker review of non-credential documents: `GET /reviews/documents/:id`, `POST /reviews/documents/:id/approve` (optional `fields` corrections, audited with the AI's original reading) and `/reject`.
+- Seed: undecided demo documents are left `QUEUED`; the API reads them with Module 1 on start-up.
+- §8.8 evaluation: `pnpm --filter api docai:samples` renders the labeled mock set to `apps/api/prisma/seed-docs/samples/`; `pnpm --filter api docai:eval` scores it and writes `apps/api/src/modules/docai/eval/results.md`.
+
 ### 8.8 Module 1 accuracy evaluation (for Chapter 4)
 
 Keep a `docai/eval/` folder with labeled sample documents (redacted / mock — **no real personal data in the repo**) and a script that reports per-type classification accuracy and per-field extraction accuracy. This gives measurable results for the manuscript.
@@ -900,7 +915,7 @@ Inputs: `paymentMethod × civilStatus × employmentType`. Output: list of `Requi
   - SINGLE → `CENOMAR`
   - MARRIED → `MARRIAGE_CONTRACT` + spouse `VALID_ID_1`, `VALID_ID_2`
   - SEPARATED → `ANNULMENT_DECREE` (or court decision)
-  - *Applied for DEFERRED_CASH, IN_HOUSE, BANK, PAG_IBIG.* **[OPEN-4]** confirm whether CASH and IN_HOUSE also require civil-status documents (source docs say "IDs only" for cash).
+  - *Applied for DEFERRED_CASH, IN_HOUSE, BANK, PAG_IBIG.* **Decided 2026-11-08 (OPEN-4):** every method except spot CASH needs civil-status documents; CASH needs only the buyer's 2 valid IDs.
 
 | Payment method | Financing-stage items |
 |---|---|
@@ -929,6 +944,13 @@ Inputs: `paymentMethod × civilStatus × employmentType`. Output: list of `Requi
 - Encode the rules as data (`requirements.rules.ts`), not nested `if`s, so it's testable and printable for the manuscript.
 - Every item is tagged `stage = RESERVATION | FINANCING`.
 - Snapshot test: every combination of (5 payment methods × 3 civil statuses × 3 employment types) produces the expected item codes.
+
+**Decided 2026-11-08 (M7 build):**
+- Rules live in `apps/api/src/modules/clients/requirements.rules.ts`; the 45-combination table is the snapshot in `__snapshots__/requirements.test.ts.snap`. Civil-status documents are FINANCING stage; the two buyer IDs are RESERVATION stage. Spouse and representative items share the buyer's codes with `appliesTo` = SPOUSE / REPRESENTATIVE. The seaman's book is listed but optional.
+- Conversion is two steps: `POST /inquiries/:id/receipt` (Module 1 reads amount and date) → `POST /inquiries/:id/convert` (consultant confirms them; creates Client, confirmed RESERVATION Payment and checklist; lead → RESERVED). `saleType` follows the listing source. Commission and tranches are created in M8.
+- Other payments: `POST /clients/:id/payments` creates an **unconfirmed** Payment from the receipt; it counts only after `POST /payments/:id/confirm`. A receipt whose OR/AR number was already used in the firm raises `DUPLICATE_RECEIPT` (BLOCKER) and cannot be confirmed. Receipts don't go to the broker's queue.
+- Buyer documents: Module 1 checks the type and, for the buyer's own items, the name (`NAME_MISMATCH`); spouse/representative names aren't recorded, so theirs aren't compared. Broker approval → item `VERIFIED`; rejection → item `MISSING` for a new upload. Re-uploading replaces an unverified copy. Only a Broker may waive an item (reason audited).
+- Regeneration (§9) removes untouched items that no longer apply and keeps uploaded/verified/waived ones as "no longer required".
 
 ---
 
@@ -959,13 +981,13 @@ Split (from `CommissionSplitConfig`, snapshotted at conversion):
 
 - Split depends on **who handles the client**, not on organic vs referral.
 - Percentages are firm-configured; the seed uses placeholders only. **[OPEN-5]** get Advench's real split and gross rates.
-- Deductions (e.g., withholding tax) are entered on the voucher as line items; the prototype does not compute tax automatically. **[OPEN-6]**
+- Deductions: **Decided 2026-11-08 (OPEN-6):** a fixed withholding % (`Firm.withholdingPct`, CompanyAdmin setting; seed placeholder 5%) is computed on each person's share automatically; the broker can add more deduction lines. Not a tax engine.
 
 ### 10.3 Milestone templates (seed data — editable per firm)
 
 | Developer / case | Payment method | Tranches |
 |---|---|---|
-| Any developer | CASH | 20% `ON_RESERVATION`*, 80% `FULL_PAYMENT` (+ transmittal) |
+| Any developer | CASH | 20% `FULL_PAYMENT`* (advance), 80% `FULL_PAYMENT` (+ transmittal) |
 | Private sale | CASH (spot) | 100% `FULL_PAYMENT`, no transmittal |
 | Any | IN_HOUSE | 100% `TCP_PERCENT_PAID` 50 |
 | Any | DEFERRED_CASH | 100% `TCP_PERCENT_PAID` 50 |
@@ -974,7 +996,7 @@ Split (from `CommissionSplitConfig`, snapshotted at conversion):
 | Parkview | BANK / PAG_IBIG | 20% first DP milestone, 80% `DP_FULLY_PAID` |
 | Futura | any | `MONTHLY` — one tranche per month of payment received while docs complete |
 
-\* "Advance: 20% right away" — **[OPEN-7]** confirm the exact trigger (reservation paid vs full cash payment received). X₁/X₂ DP thresholds per developer are **[OPEN-8]**.
+\* "Advance: 20%" — **Decided 2026-11-08 (OPEN-7):** triggered by **full cash payment** (`FULL_PAYMENT`), together with the 80%. **Decided (OPEN-8):** X₁ = 30%, X₂ = 60% of the downpayment and Parkview's first milestone = 50% of DP are **placeholders** in the seed, editable per template by the CompanyAdmin.
 
 ### 10.4 Tranche state machine (the two gates)
 
@@ -1024,6 +1046,14 @@ WAITING ────────────── yes ────────�
 - Consultant after the date: `COMPLETED` / `NO_SHOW`. Either side can `CANCELLED`. Reschedule = mark old `RESCHEDULED`, create new `PENDING` with `rescheduledFromId`.
 - Visibility: Admin all, Broker all read-only, Manager their team, Person own.
 - Calendar (month/week) + list view. Basic clash warning: same consultant within 1 hour.
+
+**Decided 2026-11-08 (M6 build):**
+- Routing order: an individual seller's listing **always** goes to the seller's chosen agent, even with a referral link (§7.2 "always"); otherwise a valid referral (active consultant of the listing's firm) wins; otherwise the buyer picks from the verified, shuffled pool. `GET /public/properties/:id/consultants?ref=` tells the page which case applies; the server re-decides on submit.
+- A referral code only needs an **active** consultant of the listing firm (OPEN-1 governs the pickers, not shared links).
+- Lead "lost" reasons and visit decline reasons are kept in the audit log / `Visit.declineReason`; no schema change. `RESERVED` is set only by client conversion (M7).
+- Approving a visit moves its lead to `VISIT_SCHEDULED` if it wasn't further along. Clash warnings never block a request.
+- Referral codes regenerated by the CompanyAdmin are initials + 4 characters without look-alikes (`POST /users/:id/referral-code`); existing seeded codes keep their older format.
+- The calendar is a month view with a day list (no week view yet).
 
 ---
 
@@ -1144,14 +1174,14 @@ Each milestone ends with: lint + typecheck + tests pass, seed runs, acceptance c
 
 | ID | Question |
 |---|---|
-| OPEN-1 | Should consultants without an approved PRC/DHSUD credential appear in the consultant/agent pickers? (Recommendation: hide them from the public picker — it's the core trust promise.) |
-| OPEN-2 | Can an individual seller property **without a title** go live (e.g., with tax declaration only), or must it be rejected? |
-| OPEN-3 | Does every buyer document need broker verification, or can CompanyAdmin/Sales Manager verify clean AI results? (Affects broker workload.) |
-| OPEN-4 | Do CASH and IN_HOUSE buyers need civil-status documents (CENOMAR / marriage contract)? |
+| OPEN-1 | ~~Should consultants without an approved PRC/DHSUD credential appear in the pickers?~~ **Decided 2026-11-08: no, hidden** (§7.3). |
+| OPEN-2 | ~~Can an individual seller property without a title go live?~~ **Decided 2026-11-08: no** (§7.6). |
+| OPEN-3 | ~~Who verifies buyer documents?~~ **Decided 2026-11-08: Broker only** (§5.2). |
+| OPEN-4 | ~~Civil-status documents for CASH / IN_HOUSE?~~ **Decided 2026-11-08: all methods except CASH** (§9.1). |
 | OPEN-5 | Advench's actual commission split % (Broker/SM/SP) and gross commission rate per developer. |
-| OPEN-6 | Are withholding tax or other deductions computed on vouchers, or just entered manually? |
-| OPEN-7 | Cash developer sale "20% advance right away" — triggered at reservation or at full cash payment? |
-| OPEN-8 | DP thresholds for Vista Land / St. Andrew tranches 1–2 and Parkview tranche 1. |
+| OPEN-6 | ~~Deductions computed or manual?~~ **Decided 2026-11-08: fixed withholding % computed automatically, plus manual lines** (§10.2). |
+| OPEN-7 | ~~20% advance trigger?~~ **Decided 2026-11-08: full cash payment** (§10.3). |
+| OPEN-8 | DP thresholds — **placeholders seeded (30/60, Parkview 50)**, still to be confirmed with Advench (§10.3). |
 | OPEN-9 | Who marks a client `COMPLETED` (consultant, admin, broker)? This triggers the rating link. |
 | OPEN-10 | Should "completed sales" on a profile count only TrustListo-recorded deals, or allow admin-entered historical counts? |
 

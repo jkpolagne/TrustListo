@@ -6,6 +6,8 @@ import { firmScope } from '../../lib/scope';
 import { requireRole } from '../../middleware/auth';
 import { HttpError, notFoundError } from '../../middleware/errorHandler';
 import type { DocFlag } from '../docai/types';
+import { documentQueue, documentReviewsRouter } from './documentReviews';
+import { listingQueue, listingReviewsRouter } from './listingReviews';
 
 /** Broker review queue and decisions (SPEC §8.6, §13 reviews). Only BROKER can approve (rule 1). */
 export const reviewsRouter = Router();
@@ -30,6 +32,8 @@ const credentialDetail = {
       aiStatus: true,
       flags: true,
       ocrText: true,
+      ocrConfidence: true,
+      detectedType: true,
       extracted: true,
     },
   },
@@ -42,8 +46,15 @@ reviewsRouter.get('/queue', async (req, res) => {
     select: credentialDetail,
     orderBy: { createdAt: 'asc' }, // oldest first
   });
-  res.json({ credentials });
+  res.json({
+    credentials,
+    documents: await documentQueue(firmId),
+    listings: await listingQueue(firmId),
+  });
 });
+
+reviewsRouter.use('/documents', documentReviewsRouter);
+reviewsRouter.use('/properties', listingReviewsRouter);
 
 async function findCredential(firmId: string, id: string) {
   const cred = await prisma.credential.findFirst({

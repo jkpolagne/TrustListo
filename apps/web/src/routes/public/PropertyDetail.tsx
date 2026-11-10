@@ -1,8 +1,9 @@
 import { Bath, BedDouble, Building2, ChevronLeft, ChevronRight, MapPin, Ruler } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatPeso } from '@trustlisto/shared';
 import { BrokerSeal } from '../../components/BrokerSeal';
+import { InquiryPanel } from '../../components/public/InquiryPanel';
 import { ListingMap } from '../../components/public/ListingMap';
 import { LoanCalculator } from '../../components/public/LoanCalculator';
 import { PropertyArt } from '../../components/public/PropertyArt';
@@ -23,6 +24,10 @@ const date = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
 export function PropertyDetail() {
   const { slug = '' } = useParams();
   const listing = useListing(slug);
+  // A consultant's shared link carries ?ref=CODE; it's sent with the inquiry, never stored.
+  const [params] = useSearchParams();
+  const refCode = params.get('ref');
+  const [asking, setAsking] = useState(false);
 
   if (listing.isPending) return <PublicLayout>{null}</PublicLayout>;
   if (listing.isError || !listing.data) {
@@ -143,6 +148,29 @@ export function PropertyDetail() {
 
           {/* Side column */}
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+            <div className="rounded-2xl bg-ink p-5 text-paper">
+              <p className="text-lg font-bold">Interested?</p>
+              <p className="mt-1 text-sm leading-relaxed text-paper/75">
+                Send your details to a licensed consultant of {p.firm?.name ?? 'the firm'}. They'll
+                call or text you. No account needed.
+              </p>
+              <button
+                type="button"
+                onClick={() => setAsking(true)}
+                className="mt-4 w-full rounded-lg bg-paper px-4 py-3 text-sm font-semibold text-ink hover:bg-canvas"
+              >
+                Send an inquiry
+              </button>
+            </div>
+            {asking && (
+              <InquiryPanel
+                propertyId={p.id}
+                propertyTitle={p.title}
+                firmName={p.firm?.name}
+                refCode={refCode}
+                onClose={() => setAsking(false)}
+              />
+            )}
             <div className="rounded-2xl border border-line p-5">
               <p className="flex items-center gap-2 text-sm text-muted">
                 <Building2 aria-hidden className="size-4" /> Listed by

@@ -24,6 +24,15 @@ export interface Project {
   developer: { id: string; name: string };
   _count: { properties: number };
   location: { lat: number; lng: number } | null;
+  /** The most recent License to Sell upload, whatever its state. */
+  latestLts: {
+    id: string;
+    aiStatus: 'QUEUED' | 'PROCESSING' | 'DONE' | 'FAILED';
+    reviewStatus: ReviewStatus;
+    reviewNote: string | null;
+    flags: { severity: string; message: string }[] | null;
+    createdAt: string;
+  } | null;
 }
 
 export interface Unit {
@@ -67,6 +76,9 @@ export const useProjects = () =>
   useQuery({
     queryKey: ['catalog', 'projects'],
     queryFn: () => api<{ data: Project[] }>('/catalog/projects').then((r) => r.data),
+    // Poll while a just-uploaded license is still being read.
+    refetchInterval: (q) =>
+      q.state.data?.some((p) => p.latestLts?.reviewStatus === 'PENDING_AI') ? 3000 : false,
   });
 
 export const useUnits = () =>
