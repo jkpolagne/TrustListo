@@ -14,6 +14,7 @@
     "db:seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "db:backfill-photos": "dotenv -e ../../.env -- tsx prisma/backfillPhotos.ts",
     "docai:samples": "tsx prisma/seed-docs/generate.ts",
+    "demo:kit": "tsx prisma/seed-docs/demo-kit.ts",
     "docai:eval": "tsx src/modules/docai/eval/evaluate.ts",
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && pnpm run db:seed",
     "postinstall": "prisma generate"

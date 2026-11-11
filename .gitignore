@@ -17,3 +17,6 @@ minio-data/
 
 # Local debug scripts
 apps/api/.dbg/
+
+# Mock files for the demo walkthrough (pnpm --filter api demo:kit)
+demo-kit/
