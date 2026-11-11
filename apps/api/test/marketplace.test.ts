@@ -134,6 +134,18 @@ describe('firm catalog', () => {
       .set(admin.csrfHeader)
       .send({ name: `Test Dev ${tag}` })
       .expect(201);
+    // Its sales earn a commission from day one: one template per payment method (§10.3).
+    const templates = await prisma.commissionTemplate.findMany({
+      where: { developerId: dev.body.id },
+      select: { paymentMethod: true },
+    });
+    expect(templates.map((t) => t.paymentMethod).sort()).toEqual([
+      'BANK',
+      'CASH',
+      'DEFERRED_CASH',
+      'IN_HOUSE',
+      'PAG_IBIG',
+    ]);
     const project = await admin.agent
       .post('/api/v1/catalog/projects')
       .set(admin.csrfHeader)

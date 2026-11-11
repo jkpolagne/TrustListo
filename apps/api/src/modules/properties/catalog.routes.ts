@@ -11,6 +11,7 @@ import { objectKey, presignedGet, putObject } from '../../lib/storage';
 import { requireDocumentFile, singleFile } from '../../lib/upload';
 import { requireRole } from '../../middleware/auth';
 import { HttpError, notFoundError } from '../../middleware/errorHandler';
+import { createDeveloperTemplates, createPrivateSaleTemplate } from '../commissions/templates';
 import { queueDocument } from '../docai/pipeline';
 
 /**
@@ -52,12 +53,23 @@ catalogRouter.post('/developers', adminOnly, async (req, res) => {
   if (await prisma.developer.findFirst({ where: { firmId, name: body.name } })) {
     throw new HttpError(409, 'DUPLICATE', 'You already have a developer with this name.');
   }
-  const dev = await prisma.developer.create({ data: { firmId, ...body } });
-  await audit(req, {
-    action: 'DEVELOPER_CREATED',
-    entityType: 'Developer',
-    entityId: dev.id,
-    after: { name: dev.name },
+  // A new developer gets the default commission milestones (§10.3), so its sales earn a
+  // commission from day one; the CompanyAdmin edits the rates in Settings.
+  const dev = await prisma.$transaction(async (tx) => {
+    const d = await tx.developer.create({ data: { firmId, ...body } });
+    const templates = await createDeveloperTemplates(tx, firmId, d);
+    await createPrivateSaleTemplate(tx, firmId);
+    await audit(
+      req,
+      {
+        action: 'DEVELOPER_CREATED',
+        entityType: 'Developer',
+        entityId: d.id,
+        after: { name: d.name, commissionTemplates: templates },
+      },
+      tx,
+    );
+    return d;
   });
   res.status(201).json(dev);
 });

@@ -17,6 +17,7 @@
     "demo:kit": "tsx prisma/seed-docs/demo-kit.ts",
     "docai:eval": "tsx src/modules/docai/eval/evaluate.ts",
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && pnpm run db:seed",
+    "db:reset:starter": "dotenv -e ../../.env -- prisma migrate reset --force --skip-seed && dotenv -e ../../.env -- tsx prisma/seed.ts --starter",
     "postinstall": "prisma generate"
   },
   "dependencies": {

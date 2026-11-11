@@ -19,6 +19,11 @@ import { SAMPLES } from './seed-docs/samples';
 import { attachSeedPhotos } from './seedPhotos';
 import { syncChecklist } from '../src/modules/clients/checklist';
 import { createCommission, evaluateClient } from '../src/modules/commissions/service';
+import {
+  createDeveloperTemplates,
+  createFirmCommissionDefaults,
+  createPrivateSaleTemplate,
+} from '../src/modules/commissions/templates';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: NODE_ENV=production');
@@ -461,93 +466,12 @@ async function seedLeads(firmId: string, adminId: string) {
   await evaluateClient(client.id);
 }
 
-type Trigger =
-  | 'ON_RESERVATION'
-  | 'FULL_PAYMENT'
-  | 'TCP_PERCENT_PAID'
-  | 'DP_PERCENT_PAID'
-  | 'DP_FULLY_PAID'
-  | 'LOAN_RELEASED'
-  | 'MONTHLY';
-type TrancheDef = [
-  label: string,
-  share: number,
-  trigger: Trigger,
-  value: number | null,
-  stage: 'RESERVATION' | 'FINANCING',
-];
-
-/**
- * Commission templates per developer × payment method (SPEC §10.3). Gross 5% everywhere and the
- * DP thresholds are PLACEHOLDERS (OPEN-5, OPEN-8) — the CompanyAdmin edits them in Settings.
- */
+/** Commission templates (SPEC §10.3) for every developer of the firm, plus private sales. */
 async function seedCommissionTemplates(firmId: string) {
-  const GROSS = 5; // PLACEHOLDER (OPEN-5)
-  const cash: TrancheDef[] = [
-    ['Advance (20%)', 20, 'FULL_PAYMENT', null, 'RESERVATION'], // OPEN-7: on full cash payment
-    ['Balance (80%)', 80, 'FULL_PAYMENT', null, 'RESERVATION'],
-  ];
-  const halfTcp: TrancheDef[] = [['Full commission', 100, 'TCP_PERCENT_PAID', 50, 'FINANCING']];
-  const camella: TrancheDef[] = [
-    ['Tranche 1', 30, 'DP_PERCENT_PAID', 30, 'RESERVATION'], // X₁ PLACEHOLDER (OPEN-8)
-    ['Tranche 2', 30, 'DP_PERCENT_PAID', 60, 'RESERVATION'], // X₂ PLACEHOLDER (OPEN-8)
-    ['Tranche 3', 30, 'DP_FULLY_PAID', null, 'FINANCING'],
-    ['Retention', 10, 'LOAN_RELEASED', null, 'FINANCING'],
-  ];
-  const parkview: TrancheDef[] = [
-    ['First DP milestone', 20, 'DP_PERCENT_PAID', 50, 'RESERVATION'], // PLACEHOLDER (OPEN-8)
-    ['DP fully paid', 80, 'DP_FULLY_PAID', null, 'FINANCING'],
-  ];
-  const monthly: TrancheDef[] = [['Monthly', 100, 'MONTHLY', null, 'RESERVATION']];
-
-  const create = (
-    developerId: string | null,
-    method: 'CASH' | 'DEFERRED_CASH' | 'IN_HOUSE' | 'BANK' | 'PAG_IBIG',
-    tranches: TrancheDef[],
-    requiresTransmittal = true,
-  ) =>
-    prisma.commissionTemplate.create({
-      data: {
-        firmId,
-        developerId,
-        paymentMethod: method,
-        grossRatePct: GROSS,
-        requiresTransmittal,
-        tranches: {
-          create: tranches.map(([label, sharePct, trigger, triggerValue, requiredStage], i) => ({
-            sequence: i + 1,
-            label,
-            sharePct,
-            trigger,
-            triggerValue,
-            requiredStage,
-          })),
-        },
-      },
-    });
-
   for (const dev of await prisma.developer.findMany({ where: { firmId } })) {
-    if (/futura/i.test(dev.name)) {
-      for (const m of ['CASH', 'DEFERRED_CASH', 'IN_HOUSE', 'BANK', 'PAG_IBIG'] as const) {
-        await create(dev.id, m, monthly);
-      }
-      continue;
-    }
-    await create(dev.id, 'CASH', cash);
-    await create(dev.id, 'DEFERRED_CASH', halfTcp);
-    await create(dev.id, 'IN_HOUSE', halfTcp);
-    // Vista Land / St. Andrew per §10.3; other developers default to the same until confirmed.
-    const loan = /parkview/i.test(dev.name) ? parkview : camella;
-    await create(dev.id, 'BANK', loan);
-    await create(dev.id, 'PAG_IBIG', loan);
+    await createDeveloperTemplates(prisma, firmId, dev);
   }
-  // Private sales: spot cash, no developer transmittal.
-  await create(
-    null,
-    'CASH',
-    [['Full commission', 100, 'FULL_PAYMENT', null, 'RESERVATION']],
-    false,
-  );
+  await createPrivateSaleTemplate(prisma, firmId);
 }
 
 /**
@@ -804,10 +728,72 @@ async function developerListing(opts: {
   }
 }
 
+/**
+ * Starter setup (`--starter`): only what the app can't create itself — the SuperAdmin, and two
+ * firms each with a CompanyAdmin and a licensed Broker — plus each firm's commission defaults.
+ * Everything else (consultants, credentials, developers, projects, units, inquiries, clients,
+ * documents, commissions) is created live in the app, for a walkthrough from a clean start.
+ */
+async function starter() {
+  await createUser({
+    firmId: null,
+    role: 'SUPER_ADMIN',
+    email: 'superadmin@trustlisto.test',
+    firstName: 'Platform',
+    lastName: 'Admin',
+  });
+  const firms = [
+    {
+      name: 'Advench Realty',
+      slug: 'advench',
+      domain: 'advench.test',
+      admin: ['Andrea', 'Villanueva'],
+      broker: ['Bernardo', 'Reyes', 'PRC-0012345'],
+      brokerEmail: 'broker1',
+    },
+    {
+      name: 'Bicol Prime Realty',
+      slug: 'bicol-prime',
+      domain: 'bicolprime.test',
+      admin: ['Teresa', 'Lim'],
+      broker: ['Gilbert', 'Fernandez', 'PRC-0034567'],
+      brokerEmail: 'broker',
+    },
+  ] as const;
+  for (const f of firms) {
+    const firm = await prisma.firm.create({
+      data: { name: f.name, slug: f.slug, address: 'Naga City, Camarines Sur', withholdingPct: 5 },
+    });
+    await createUser({
+      firmId: firm.id,
+      role: 'COMPANY_ADMIN',
+      email: `admin@${f.domain}`,
+      firstName: f.admin[0],
+      lastName: f.admin[1],
+    });
+    const broker = await createUser({
+      firmId: firm.id,
+      role: 'BROKER',
+      email: `${f.brokerEmail}@${f.domain}`,
+      firstName: f.broker[0],
+      lastName: f.broker[1],
+      referralCode: `${f.broker[0][0]}${f.broker[1]}`.toUpperCase(),
+    });
+    // The broker's own PRC license is on file: someone has to be licensed to approve things.
+    await credential(firm.id, broker.id, 'PRC_LICENSE', 'APPROVED', inDays(700), f.broker[2]);
+    await createFirmCommissionDefaults(prisma, firm.id);
+  }
+  const users = await prisma.user.count();
+  console.log(
+    `Starter setup: 2 firms, ${users} users, no listings or deals. Password: Password123!`,
+  );
+}
+
 async function main() {
   passwordHash = await argon2.hash('Password123!');
   await ensureBucket();
   await wipe();
+  if (process.argv.includes('--starter')) return starter();
 
   // ── SuperAdmin ──
   await createUser({

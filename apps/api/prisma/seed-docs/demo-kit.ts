@@ -19,7 +19,43 @@ const DP = 215_000; // 10% downpayment, entered when converting
 const TRANCHE_1 = 32_250; // 5% commission × 30% (Camella tranche 1)
 const SELLER = 'TEODORO LAGMAN';
 
+const inYears = (n: number) => `${Number(today.slice(0, 4)) + n}${today.slice(4)}`;
+const dhsud = (name: string, registrationNumber: string) =>
+  mock.dhsudCert({ name, registrationNumber, issued: inYears(-1), validUntil: inYears(2) });
+
 const files: [string, Promise<Buffer> | Buffer][] = [
+  // Module 2 setup: consultant licenses (the admin enters the number shown in the file name).
+  ['01a-dhsud-JOY-OCAMPO-DHSUD-R5-2001.png', dhsud('JOY OCAMPO', 'DHSUD-R5-2001')],
+  ['01b-dhsud-MARCO-DELA-CRUZ-DHSUD-R5-1001.png', dhsud('MARCO DELA CRUZ', 'DHSUD-R5-1001')],
+  ['01c-dhsud-RICO-SALAZAR-DHSUD-R5-3002.png', dhsud('RICO SALAZAR', 'DHSUD-R5-3002')],
+  // Deliberately wrong: the certificate says Kristine, the consultant is Kris → flagged.
+  [
+    '01d-WRONG-dhsud-for-KRIS-NAVARRO-DHSUD-R5-2005.png',
+    dhsud('KRISTINE NAVARRO', 'DHSUD-R5-2005'),
+  ],
+  // Module 2 setup: the project's License to Sell, and one that has expired.
+  [
+    '02a-lts-CAMELLA-NAGA.png',
+    mock.licenseToSell({
+      ltsNumber: 'LTS-R5-2024-0101',
+      project: 'Camella Naga',
+      developer: 'Vista Land (Camella)',
+      location: 'Del Rosario, Naga City',
+      issued: inYears(-1),
+      validUntil: inYears(2),
+    }),
+  ],
+  [
+    '02b-EXPIRED-lts-CAMELLA-NAGA.png',
+    mock.licenseToSell({
+      ltsNumber: 'LTS-R5-2019-0101',
+      project: 'Camella Naga',
+      developer: 'Vista Land (Camella)',
+      location: 'Del Rosario, Naga City',
+      issued: inYears(-6),
+      validUntil: inYears(-1),
+    }),
+  ],
   [
     '06a-reservation-receipt.png',
     mock.paymentReceipt({
