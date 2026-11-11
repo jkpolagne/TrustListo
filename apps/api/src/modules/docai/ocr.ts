@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import sharp from 'sharp';
 import { createWorker, PSM, type Worker } from 'tesseract.js';
@@ -7,15 +8,24 @@ import type { OcrLine, OcrResult } from './types';
 /**
  * OCR step of the pipeline (SPEC §8.1):
  *   PDF → page images (300 DPI) → preprocess with sharp → Tesseract (psm 3, fallback psm 6).
- * The Tesseract worker is created once and reused; its English model is downloaded on first
- * use and cached in apps/api/.cache/tesseract.
+ * The Tesseract worker is created once and reused. Its English model ships with the project
+ * (@tesseract.js-data/eng, the same "best_int" model tesseract.js would otherwise download), so
+ * OCR works offline: no internet needed at a demo or on a locked-down server.
  */
+
+const require = createRequire(import.meta.url);
+const LANG_PATH = path.join(
+  path.dirname(require.resolve('@tesseract.js-data/eng/package.json')),
+  '4.0.0_best_int',
+);
 
 let worker: Promise<Worker> | null = null;
 
 function getWorker(): Promise<Worker> {
   worker ??= createWorker('eng', 1, {
-    cachePath: path.resolve(import.meta.dirname, '../../../.cache/tesseract'),
+    langPath: LANG_PATH, // a local folder, read with fs
+    gzip: true, // eng.traineddata.gz
+    cacheMethod: 'none', // nothing to cache: the model is already on disk
   });
   return worker;
 }
