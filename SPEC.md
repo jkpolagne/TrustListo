@@ -229,6 +229,11 @@ model Firm {
   loanTermYears      Int     @default(30)
   loanDownpaymentPct Decimal @default(10)   @db.Decimal(6,3)
   loanIncomeRatioPct Decimal @default(35)   @db.Decimal(6,3)
+  withholdingPct     Decimal @default(0)    @db.Decimal(6,3) // OPEN-6, voucher withholding
+  // Closing estimate rates (§11), edited by CompanyAdmin. Added 2026-11-11.
+  cgtRatePct         Decimal @default(6)    @db.Decimal(6,3)
+  dstRatePct         Decimal @default(1.5)  @db.Decimal(6,3)
+  transferTaxRatePct Decimal @default(0.5)  @db.Decimal(6,3)
 }
 
 model User {
@@ -1072,6 +1077,11 @@ Computation helper (all rates **configurable per firm**; show "estimate — veri
 
 Closing checklist (consultant ticks, timestamps logged): deed of sale signed, CGT/DST paid, tax clearance / eCAR obtained, transfer tax paid, title transferred, new tax declaration issued, keys turned over. Marking all done → client `COMPLETED` → generates a rating link.
 
+**Decided 2026-11-11 (M9):**
+- Default rates are stored per firm on `Firm` (`cgtRatePct` 6, `dstRatePct` 1.5, `transferTaxRatePct` 0.5), edited by the CompanyAdmin in Settings; each deal's computation snapshots the rates it used.
+- The first save of a client's closing computation or first checklist tick moves `ACTIVE → CLOSING` (audited).
+- The last tick moves `CLOSING → COMPLETED` automatically (OPEN-9) and creates the rating link.
+
 ---
 
 ## 12. Ratings
@@ -1182,8 +1192,8 @@ Each milestone ends with: lint + typecheck + tests pass, seed runs, acceptance c
 | OPEN-6 | ~~Deductions computed or manual?~~ **Decided 2026-11-08: fixed withholding % computed automatically, plus manual lines** (§10.2). |
 | OPEN-7 | ~~20% advance trigger?~~ **Decided 2026-11-08: full cash payment** (§10.3). |
 | OPEN-8 | DP thresholds — **placeholders seeded (30/60, Parkview 50)**, still to be confirmed with Advench (§10.3). |
-| OPEN-9 | Who marks a client `COMPLETED` (consultant, admin, broker)? This triggers the rating link. |
-| OPEN-10 | Should "completed sales" on a profile count only TrustListo-recorded deals, or allow admin-entered historical counts? |
+| OPEN-9 | ~~Who marks a client `COMPLETED` (consultant, admin, broker)?~~ **Decided 2026-11-11: automatic** — the consultant's last closing-checklist tick sets `COMPLETED` and creates the rating link (§11). |
+| OPEN-10 | ~~Should "completed sales" on a profile count only TrustListo-recorded deals, or allow admin-entered historical counts?~~ **Decided 2026-11-11: TrustListo-recorded `COMPLETED` clients only.** |
 
 ---
 

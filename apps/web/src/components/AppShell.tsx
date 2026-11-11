@@ -14,6 +14,7 @@ import {
   Contact,
   Inbox,
   Receipt,
+  ChartColumn,
   UserRoundSearch,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/admin/visits', label: 'Visits', icon: CalendarDays },
     { to: '/admin/clients', label: 'Clients', icon: Contact },
     { to: '/admin/commissions', label: 'Commissions', icon: Receipt },
+    { to: '/admin/reports', label: 'Reports', icon: ChartColumn },
     { to: '/admin/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/admin/team', label: 'Team', icon: Users },
     { to: '/admin/activity', label: 'Activity log', icon: History },
@@ -48,6 +50,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/broker/visits', label: 'Visits', icon: CalendarDays },
     { to: '/broker/clients', label: 'Clients', icon: Contact },
     { to: '/broker/commissions', label: 'Commissions', icon: Receipt },
+    { to: '/broker/reports', label: 'Reports', icon: ChartColumn },
     { to: '/broker/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/broker/team', label: 'Team', icon: Users },
     { to: '/broker/activity', label: 'Activity log', icon: History },
@@ -60,6 +63,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/manager/visits', label: 'Visits', icon: CalendarDays },
     { to: '/manager/clients', label: 'Clients', icon: Contact },
     { to: '/manager/commissions', label: 'My commissions', icon: Receipt },
+    { to: '/manager/reports', label: 'Reports', icon: ChartColumn },
     { to: '/manager/sellers', label: 'Seller requests', icon: Inbox },
   ],
   SALES_PERSON: [

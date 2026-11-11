@@ -53,7 +53,7 @@ export function ConsultantCard({
         <span className="block">
           {c.rating
             ? `Rated ${c.rating.average.toFixed(1)} of 5 by ${c.rating.count} buyer${c.rating.count === 1 ? '' : 's'}`
-            : 'No ratings yet'}
+            : 'New, no ratings yet'}
         </span>
         <span className="block">
           {c.completedSales} completed sale{c.completedSales === 1 ? '' : 's'} on TrustListo

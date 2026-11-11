@@ -28,6 +28,9 @@ import {
 } from './modules/clients/clients.routes';
 import { commissionsRouter } from './modules/commissions/commissions.routes';
 import { usersRouter } from './modules/users/users.routes';
+import { closingRouter } from './modules/closing/closing.routes';
+import { ratingsPublicRouter } from './modules/ratings/public.routes';
+import { reportsRouter } from './modules/reports/reports.routes';
 
 export function createApp() {
   const app = express();
@@ -55,6 +58,7 @@ export function createApp() {
   v1.use('/public', publicRouter); // marketplace, no login
   v1.use('/public', sellerPublicRouter); // agent picker, consultant profiles, seller form
   v1.use('/public', leadsPublicRouter); // consultant pool per listing, buyer inquiries
+  v1.use('/public', ratingsPublicRouter); // buyer's one-time rating link (§12)
   // Everything below needs a signed-in user.
   v1.use('/admin', requireAuth, adminRouter);
   v1.use('/users', requireAuth, usersRouter);
@@ -67,6 +71,8 @@ export function createApp() {
   v1.use('/inquiries', requireAuth, inquiriesRouter);
   v1.use('/inquiries', requireAuth, conversionRouter); // receipt + convert to client
   v1.use('/clients', requireAuth, clientsRouter);
+  v1.use('/clients', requireAuth, closingRouter); // /clients/:id/closing, /clients/:id/rating-link
+  v1.use('/reports', requireAuth, reportsRouter);
   v1.use('/requirements', requireAuth, requirementsRouter);
   v1.use('/payments', requireAuth, paymentsRouter);
   v1.use(commissionsRouter); // /commissions, /tranches, /vouchers (guards inside)

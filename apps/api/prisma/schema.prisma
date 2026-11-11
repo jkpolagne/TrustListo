@@ -45,6 +45,11 @@ model Firm {
   loanDownpaymentPct Decimal @default(10) @db.Decimal(6, 3)
   loanIncomeRatioPct Decimal @default(35) @db.Decimal(6, 3)
   withholdingPct     Decimal @default(0) @db.Decimal(6, 3) // OPEN-6: withheld from each voucher share
+
+  // Closing estimate rates (SPEC §11), edited by the CompanyAdmin. Added 2026-11-11 with approval.
+  cgtRatePct         Decimal @default(6) @db.Decimal(6, 3) // capital gains tax, usually the seller's
+  dstRatePct         Decimal @default(1.5) @db.Decimal(6, 3) // documentary stamp tax
+  transferTaxRatePct Decimal @default(0.5) @db.Decimal(6, 3) // local transfer tax (verify Naga City)
 }
 
 model User {

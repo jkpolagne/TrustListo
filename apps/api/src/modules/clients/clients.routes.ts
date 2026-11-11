@@ -353,6 +353,14 @@ clientsRouter.patch('/:id', async (req, res) => {
   const body = patchBody.parse(req.body);
   const c = await findClient(req, req.params.id);
   assertHandler(req, c.consultantId);
+  // A finished or cancelled sale keeps its terms (its checklist and commission depend on them).
+  if (c.status === 'COMPLETED' || c.status === 'CANCELLED') {
+    throw new HttpError(
+      409,
+      'CLIENT_CLOSED',
+      'This sale is finished; its buying details are final.',
+    );
+  }
   const result = await prisma.$transaction(async (tx) => {
     await tx.client.update({ where: { id: c.id }, data: body });
     const changes = await syncChecklist(tx, c, body);

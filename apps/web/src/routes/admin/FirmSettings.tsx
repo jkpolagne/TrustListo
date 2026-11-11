@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/AppShell';
 import { Field, FormError, FormSuccess, PrimaryButton } from '../../components/Form';
 import { Card, CardHeader } from '../../components/ui';
 import { api } from '../../lib/api';
+import { ClosingRates } from './ClosingRates';
 import { CommissionSettings } from './CommissionSettings';
 
 interface Settings {
@@ -131,6 +132,7 @@ export function FirmSettings() {
         </Card>
       </div>
       <CommissionSettings />
+      <ClosingRates />
     </>
   );
 }

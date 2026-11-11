@@ -20,6 +20,8 @@ import { ClientDetail } from './routes/firm/ClientDetail';
 import { Clients } from './routes/firm/Clients';
 import { CommissionDetail } from './routes/firm/CommissionDetail';
 import { Commissions } from './routes/firm/Commissions';
+import { Reports } from './routes/firm/Reports';
+import { Rate } from './routes/public/Rate';
 import { Login } from './routes/auth/Login';
 import { Activity } from './routes/firm/Activity';
 import { AdminHome, BrokerHome, ManagerHome, SalespersonHome } from './routes/firm/Dashboards';
@@ -50,6 +52,7 @@ const router = createBrowserRouter([
   { path: '/about-badges', element: <AboutBadges /> },
   { path: '/credits', element: <Credits /> },
   { path: '/list-your-property', element: <ListYourProperty /> },
+  { path: '/rate/:token', element: <Rate /> },
   {
     element: (
       <RequireRole>
@@ -113,6 +116,14 @@ const router = createBrowserRouter([
         { path: `${base}/commissions`, element: only([role], <Commissions />) },
         { path: `${base}/commissions/:id`, element: only([role], <CommissionDetail />) },
       ]),
+      // Reports (§10.6): the firm for admin and broker, the team for a sales manager.
+      ...(
+        [
+          ['/admin', 'COMPANY_ADMIN'],
+          ['/broker', 'BROKER'],
+          ['/manager', 'SALES_MANAGER'],
+        ] as const
+      ).map(([base, role]) => ({ path: `${base}/reports`, element: only([role], <Reports />) })),
 
       { path: '/account', element: <Account /> },
     ],

@@ -295,7 +295,11 @@ describe('firm loan defaults (SPEC §7.4)', () => {
     const advDetail = await pub(`/properties/${other.body.data[0].slug}`).expect(200);
     expect(advDetail.body.loanDefaults.annualRatePct).toBe(6.25);
 
-    const row = await prisma.auditLog.findFirst({ where: { action: 'FIRM_SETTINGS_UPDATED' } });
+    // The newest one: other test files also change firm settings.
+    const row = await prisma.auditLog.findFirst({
+      where: { action: 'FIRM_SETTINGS_UPDATED' },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(row?.after).toMatchObject({ loanRatePct: 7.5 });
   });
 

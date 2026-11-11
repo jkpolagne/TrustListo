@@ -16,6 +16,9 @@ const select = {
   loanDownpaymentPct: true,
   loanIncomeRatioPct: true,
   withholdingPct: true,
+  cgtRatePct: true,
+  dstRatePct: true,
+  transferTaxRatePct: true,
 } as const;
 
 const asNumbers = (f: {
@@ -25,6 +28,9 @@ const asNumbers = (f: {
   loanDownpaymentPct: unknown;
   loanIncomeRatioPct: unknown;
   withholdingPct: unknown;
+  cgtRatePct: unknown;
+  dstRatePct: unknown;
+  transferTaxRatePct: unknown;
 }) => ({
   name: f.name,
   loanRatePct: Number(f.loanRatePct),
@@ -32,6 +38,9 @@ const asNumbers = (f: {
   loanDownpaymentPct: Number(f.loanDownpaymentPct),
   loanIncomeRatioPct: Number(f.loanIncomeRatioPct),
   withholdingPct: Number(f.withholdingPct),
+  cgtRatePct: Number(f.cgtRatePct),
+  dstRatePct: Number(f.dstRatePct),
+  transferTaxRatePct: Number(f.transferTaxRatePct),
 });
 
 settingsRouter.get('/firm', requireRole('COMPANY_ADMIN', 'BROKER'), async (req, res) => {
@@ -56,6 +65,10 @@ const body = z.object({
     .min(0)
     .max(35, 'Use a withholding rate of 35% or less.')
     .optional(),
+  // §11 closing estimate rates (decided 2026-11-11).
+  cgtRatePct: z.coerce.number().min(0).max(20, 'Use a rate of 20% or less.').optional(),
+  dstRatePct: z.coerce.number().min(0).max(20, 'Use a rate of 20% or less.').optional(),
+  transferTaxRatePct: z.coerce.number().min(0).max(5, 'Use a rate of 5% or less.').optional(),
 });
 
 settingsRouter.put('/firm', requireRole('COMPANY_ADMIN'), async (req, res) => {

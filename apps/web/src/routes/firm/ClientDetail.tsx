@@ -25,6 +25,7 @@ import {
 import { CIVIL_STATUS } from '../../lib/leads';
 import { basePath } from '../../lib/paths';
 import { aiSummary } from '../../lib/reviews';
+import { ClosingCard } from './ClientClosing';
 
 const peso = (v: string | number) => formatPeso(v).replace(/\.00$/, '');
 const day = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
@@ -48,8 +49,9 @@ export function ClientDetail() {
         back={back}
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,1fr)]">
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-6">
           <Checklist c={c} role={me.role} />
+          <ClosingCard clientId={c.id} buyer={{ fullName: c.fullName, email: c.email }} />
         </div>
         <div className="space-y-6">
           <Card>
@@ -85,7 +87,7 @@ export function ClientDetail() {
             </dl>
           </Card>
           <Payments c={c} />
-          {c.isMine && <BuyingDetails c={c} />}
+          {c.isMine && (c.status === 'ACTIVE' || c.status === 'CLOSING') && <BuyingDetails c={c} />}
         </div>
       </div>
     </>
