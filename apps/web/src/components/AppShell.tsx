@@ -26,54 +26,72 @@ import { Logo } from './Logo';
 import { Avatar } from './ui';
 
 type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean };
+type NavGroup = { title?: string; items: NavItem[] };
 
-// Only screens that exist.
-export const NAV: Record<Role, NavItem[]> = {
-  SUPER_ADMIN: [{ to: '/superadmin', label: 'Firms', icon: Building2, end: true }],
+/** A sale's pages, in the order the work happens: lead → visit → client → commission. */
+const sales = (base: string, commissions: string): NavGroup => ({
+  title: 'Sales',
+  items: [
+    { to: `${base}/leads`, label: 'Leads', icon: UserRoundSearch },
+    { to: `${base}/visits`, label: 'Visits', icon: CalendarDays },
+    { to: `${base}/clients`, label: 'Clients', icon: Contact },
+    { to: `${base}/commissions`, label: commissions, icon: Receipt },
+  ],
+});
+const listings = (base: string): NavGroup => ({
+  title: 'Listings',
+  items: [
+    { to: `${base}/listings`, label: 'Listings', icon: Home },
+    { to: `${base}/sellers`, label: 'Seller requests', icon: Inbox },
+  ],
+});
+
+// Only screens that exist. Grouped so the menu reads as the work: sales, listings, the firm.
+export const NAV: Record<Role, NavGroup[]> = {
+  SUPER_ADMIN: [{ items: [{ to: '/superadmin', label: 'Firms', icon: Building2, end: true }] }],
   COMPANY_ADMIN: [
-    { to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true },
-    { to: '/admin/listings', label: 'Listings', icon: Home },
-    { to: '/admin/leads', label: 'Leads', icon: UserRoundSearch },
-    { to: '/admin/visits', label: 'Visits', icon: CalendarDays },
-    { to: '/admin/clients', label: 'Clients', icon: Contact },
-    { to: '/admin/commissions', label: 'Commissions', icon: Receipt },
-    { to: '/admin/reports', label: 'Reports', icon: ChartColumn },
-    { to: '/admin/sellers', label: 'Seller requests', icon: Inbox },
-    { to: '/admin/team', label: 'Team', icon: Users },
-    { to: '/admin/activity', label: 'Activity log', icon: History },
-    { to: '/admin/settings', label: 'Settings', icon: SlidersHorizontal },
+    { items: [{ to: '/admin', label: 'Overview', icon: LayoutDashboard, end: true }] },
+    sales('/admin', 'Commissions'),
+    listings('/admin'),
+    {
+      title: 'Your firm',
+      items: [
+        { to: '/admin/team', label: 'Team', icon: Users },
+        { to: '/admin/reports', label: 'Reports', icon: ChartColumn },
+        { to: '/admin/activity', label: 'Activity log', icon: History },
+        { to: '/admin/settings', label: 'Settings', icon: SlidersHorizontal },
+      ],
+    },
   ],
   BROKER: [
-    { to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true },
-    { to: '/broker/listings', label: 'Listings', icon: Home },
-    { to: '/broker/leads', label: 'Leads', icon: UserRoundSearch },
-    { to: '/broker/visits', label: 'Visits', icon: CalendarDays },
-    { to: '/broker/clients', label: 'Clients', icon: Contact },
-    { to: '/broker/commissions', label: 'Commissions', icon: Receipt },
-    { to: '/broker/reports', label: 'Reports', icon: ChartColumn },
-    { to: '/broker/sellers', label: 'Seller requests', icon: Inbox },
-    { to: '/broker/team', label: 'Team', icon: Users },
-    { to: '/broker/activity', label: 'Activity log', icon: History },
+    { items: [{ to: '/broker', label: 'Review queue', icon: ClipboardCheck, end: true }] },
+    sales('/broker', 'Commissions'),
+    listings('/broker'),
+    {
+      title: 'Your firm',
+      items: [
+        { to: '/broker/team', label: 'Team', icon: Users },
+        { to: '/broker/reports', label: 'Reports', icon: ChartColumn },
+        { to: '/broker/activity', label: 'Activity log', icon: History },
+      ],
+    },
   ],
   SALES_MANAGER: [
-    { to: '/manager', label: 'Overview', icon: LayoutDashboard, end: true },
-    { to: '/manager/team', label: 'My team', icon: Users },
-    { to: '/manager/listings', label: 'Listings', icon: Home },
-    { to: '/manager/leads', label: 'Leads', icon: UserRoundSearch },
-    { to: '/manager/visits', label: 'Visits', icon: CalendarDays },
-    { to: '/manager/clients', label: 'Clients', icon: Contact },
-    { to: '/manager/commissions', label: 'My commissions', icon: Receipt },
-    { to: '/manager/reports', label: 'Reports', icon: ChartColumn },
-    { to: '/manager/sellers', label: 'Seller requests', icon: Inbox },
+    { items: [{ to: '/manager', label: 'Overview', icon: LayoutDashboard, end: true }] },
+    sales('/manager', 'My commissions'),
+    listings('/manager'),
+    {
+      title: 'Your team',
+      items: [
+        { to: '/manager/team', label: 'My team', icon: Users },
+        { to: '/manager/reports', label: 'Reports', icon: ChartColumn },
+      ],
+    },
   ],
   SALES_PERSON: [
-    { to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true },
-    { to: '/salesperson/listings', label: 'Listings', icon: Home },
-    { to: '/salesperson/leads', label: 'Leads', icon: UserRoundSearch },
-    { to: '/salesperson/visits', label: 'Visits', icon: CalendarDays },
-    { to: '/salesperson/clients', label: 'Clients', icon: Contact },
-    { to: '/salesperson/commissions', label: 'My commissions', icon: Receipt },
-    { to: '/salesperson/sellers', label: 'Seller requests', icon: Inbox },
+    { items: [{ to: '/salesperson', label: 'Overview', icon: LayoutDashboard, end: true }] },
+    sales('/salesperson', 'My commissions'),
+    listings('/salesperson'),
   ],
 };
 
@@ -84,7 +102,10 @@ export function AppShell() {
   const [open, setOpen] = useState(false);
   if (!me) return null;
 
-  const items: NavItem[] = [...NAV[me.role], { to: '/account', label: 'Account', icon: Settings }];
+  const groups: NavGroup[] = [
+    ...NAV[me.role],
+    { items: [{ to: '/account', label: 'Account', icon: Settings }] },
+  ];
 
   async function handleSignOut() {
     await signOut.mutateAsync();
@@ -103,22 +124,39 @@ export function AppShell() {
         <p className="truncate text-sm font-bold">{me.firm?.name ?? 'TrustListo platform'}</p>
       </div>
 
-      <nav aria-label="Main" className="mt-5 flex flex-1 flex-col gap-0.5">
-        {items.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={() => setOpen(false)}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                isActive ? 'bg-ink text-paper' : 'text-graphite hover:bg-canvas hover:text-ink'
-              }`
-            }
-          >
-            <Icon aria-hidden className="size-[18px]" strokeWidth={2} />
-            {label}
-          </NavLink>
+      <nav aria-label="Main" className="-mx-1 mt-5 flex-1 overflow-y-auto px-1">
+        {groups.map((g, gi) => (
+          <div key={g.title ?? gi} className={gi ? 'mt-4' : ''}>
+            {g.title && (
+              <p className="mb-1 px-3 text-xs font-semibold text-muted" id={`nav-${gi}`}>
+                {g.title}
+              </p>
+            )}
+            <ul
+              className="flex flex-col gap-0.5"
+              aria-labelledby={g.title ? `nav-${gi}` : undefined}
+            >
+              {g.items.map(({ to, label, icon: Icon, end }) => (
+                <li key={to}>
+                  <NavLink
+                    to={to}
+                    end={end}
+                    onClick={() => setOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-ink text-paper'
+                          : 'text-graphite hover:bg-canvas hover:text-ink'
+                      }`
+                    }
+                  >
+                    <Icon aria-hidden className="size-4.5" strokeWidth={2} />
+                    {label}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
       </nav>
 

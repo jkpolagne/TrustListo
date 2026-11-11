@@ -25,6 +25,8 @@ import {
 import { CIVIL_STATUS } from '../../lib/leads';
 import { basePath } from '../../lib/paths';
 import { aiSummary } from '../../lib/reviews';
+import { useClosing } from '../../lib/closing';
+import { useCommissions } from '../../lib/commissions';
 import { ClosingCard } from './ClientClosing';
 
 const peso = (v: string | number) => formatPeso(v).replace(/\.00$/, '');
@@ -54,6 +56,7 @@ export function ClientDetail() {
           <ClosingCard clientId={c.id} buyer={{ fullName: c.fullName, email: c.email }} />
         </div>
         <div className="space-y-6">
+          <ClientNextStep c={c} base={basePath(me.role)} />
           <Card>
             <dl className="grid grid-cols-[8.5rem_1fr] gap-y-2 text-sm">
               <dt className="text-muted">Contract price</dt>
@@ -91,6 +94,64 @@ export function ClientDetail() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Where this sale is and what comes next (§9–§11): documents → payments and commission →
+ * closing → rating. Links to the deal's commission, which this page otherwise doesn't show.
+ */
+function ClientNextStep({ c, base }: { c: Detail; base: string }) {
+  const commissions = useCommissions();
+  const closing = useClosing(c.id);
+  const deal = commissions.data?.data.find((x) => x.clientId === c.id);
+  const required = c.requirements.filter((r) => r.required);
+  const missing = required.filter((r) => r.status === 'MISSING' || r.status === 'NEEDS_ATTENTION');
+  const withBroker = required.filter((r) => r.status === 'UPLOADED');
+  const stepsLeft = closing.data?.checklist.filter((i) => !i.done).length ?? 7;
+  const first = c.fullName.split(' ')[0];
+
+  let title: string;
+  let body: string;
+  if (c.status === 'COMPLETED') {
+    title = 'Sale completed';
+    body = closing.data?.rating
+      ? `${first} rated this sale ${closing.data.rating.stars} of 5.`
+      : `Send ${first} the rating link below so other buyers can see how you did.`;
+  } else if (c.status === 'CLOSING') {
+    title = 'Finish the transfer';
+    body = `${stepsLeft} of 7 transfer steps left. Tick each one as it happens; the last completes the sale.`;
+  } else if (missing.length) {
+    title = c.isMine
+      ? `Upload ${missing.length} document${missing.length === 1 ? '' : 's'}`
+      : `${missing.length} document${missing.length === 1 ? '' : 's'} missing`;
+    body = `Commissions are released only after a broker verifies the buyer's documents.${
+      withBroker.length ? ` ${withBroker.length} more already with the broker.` : ''
+    }`;
+  } else if (withBroker.length) {
+    title = 'Documents are with the broker';
+    body = `${withBroker.length} waiting for verification. Nothing to do until the broker reviews them.`;
+  } else {
+    title = 'Record payments as they come in';
+    body = `Upload each receipt below. When the property is ready to transfer, start the closing steps.`;
+  }
+
+  return (
+    <section aria-labelledby="client-next" className="rounded-2xl bg-ink p-5 text-paper sm:p-6">
+      <p className="text-sm font-medium text-paper/70">Next step</p>
+      <h2 id="client-next" className="mt-1 text-lg leading-snug font-bold">
+        {title}
+      </h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-paper/80">{body}</p>
+      {deal && (
+        <Link
+          to={`${base}/commissions/${deal.id}`}
+          className="mt-4 inline-flex items-center justify-center rounded-lg bg-paper px-4 py-2.5 text-sm font-semibold text-ink hover:bg-canvas"
+        >
+          Open the commission
+        </Link>
+      )}
+    </section>
   );
 }
 

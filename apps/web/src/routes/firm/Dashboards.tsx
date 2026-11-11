@@ -3,9 +3,23 @@ import { Link } from 'react-router-dom';
 import { ROLE_LABEL } from '@trustlisto/shared';
 import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
-import { Avatar, ButtonLink, Card, CardHeader, EmptyState, StatCard } from '../../components/ui';
+import {
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  CardHeader,
+  EmptyState,
+  StatCard,
+} from '../../components/ui';
+import { useState } from 'react';
+import { SaleFlow, TaskList, WaitingList } from '../../components/office/Work';
 import { useMe } from '../../lib/auth';
+import { useClients } from '../../lib/clients';
 import { useCommissions } from '../../lib/commissions';
+import { useLeads, useVisits } from '../../lib/leads';
+import { useSellerRequests } from '../../lib/sellers';
+import { adminWork, consultantWork, stages } from '../../lib/work';
 import { aiSummary, docTypeName, useReviewQueue, type QueuedDocument } from '../../lib/reviews';
 import { credentialState, fullName, useTeam, type TeamMember } from '../../lib/team';
 
@@ -72,57 +86,67 @@ function PersonList({
   );
 }
 
+/** All the lists the Overview pages read. Each list is already scoped to the user's role. */
+function useWorkData() {
+  const leads = useLeads();
+  const visits = useVisits();
+  const clients = useClients();
+  const commissions = useCommissions();
+  const sellers = useSellerRequests();
+  const team = useTeam();
+  return {
+    ready: !leads.isPending && !clients.isPending && !commissions.isPending,
+    leads: leads.data,
+    visits: visits.data,
+    clients: clients.data,
+    commissions: commissions.data?.data,
+    sellers: sellers.data,
+    team: team.data,
+  };
+}
+
+/** CompanyAdmin: approvals, transmittals and people, with every deal's stage on top. */
 export function AdminHome() {
   const { data: me } = useMe();
-  const team = useTeam();
-  const work = team.data ? credentialWork(team.data) : null;
-  const active = (role: TeamMember['role']) =>
-    team.data?.filter((p) => p.role === role && p.isActive).length ?? 0;
+  const data = useWorkData();
+  if (!me) return null;
+  const input = { me, base: '/admin', ...data };
+  const work = adminWork(input);
+  const active = data.team?.filter((p) => p.isActive && p.role !== 'COMPANY_ADMIN').length ?? 0;
 
   return (
     <>
       <PageHeader
-        title={greet(me?.firstName)}
-        intro={me?.firm ? `Here's what needs attention at ${me.firm.name}.` : undefined}
+        title={greet(me.firstName)}
+        intro={
+          me.firm
+            ? `What needs you at ${me.firm.name} today. Consultants handle buyers; you approve visits, add transmittals and keep the team's licenses current.`
+            : undefined
+        }
         actions={<ButtonLink to="/admin/team/new">Add consultant</ButtonLink>}
       />
-      {work && (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Active consultants"
-              value={active('BROKER') + active('SALES_MANAGER') + active('SALES_PERSON')}
-              hint={`${active('BROKER')} brokers, ${active('SALES_MANAGER')} managers, ${active('SALES_PERSON')} sales`}
-            />
-            <StatCard label="Verified credentials" value={work.verified.length} tone="verified" />
-            <StatCard
-              label="Waiting for a broker"
-              value={work.review.length + work.reading.length}
-            />
-            <StatCard
-              label="Expired credentials"
-              value={work.expired.length}
-              tone={work.expired.length ? 'danger' : undefined}
-            />
-          </div>
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader
-                title="Expired credentials"
-                description="Upload a current one for each person."
-              />
-              <PersonList rows={work.expired} empty="No expired credentials." />
-            </Card>
-            <Card>
-              <CardHeader
-                title="Waiting for a broker"
-                description="A licensed broker approves these."
-              />
-              <PersonList rows={[...work.review, ...work.reading]} empty="Nothing is waiting." />
-            </Card>
-          </div>
-        </>
-      )}
+      <SaleFlow stages={stages(input, 'all')} title="Where every deal is" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+        {data.ready ? (
+          <TaskList
+            tasks={work.tasks}
+            empty="Nothing needs you right now. Visit requests and transmittals show up here."
+          />
+        ) : (
+          <div />
+        )}
+        <div className="space-y-6">
+          <WaitingList items={work.waiting} />
+          <Card>
+            <CardHeader title="Team" />
+            <p className="text-3xl font-bold tabular-nums">{active}</p>
+            <p className="text-sm text-muted">active brokers and consultants</p>
+            <ButtonLink to="/admin/team" variant="secondary" className="mt-4 w-full">
+              Open team
+            </ButtonLink>
+          </Card>
+        </div>
+      </div>
     </>
   );
 }
@@ -294,91 +318,155 @@ function DocumentGroups({ docs }: { docs: QueuedDocument[] }) {
   );
 }
 
+/** Sales Manager: their own deals' work, plus a view of their team. */
 export function ManagerHome() {
   const { data: me } = useMe();
-  const team = useTeam();
-  const mine = team.data?.filter((p) => p.id !== me?.id) ?? [];
-  const work = credentialWork(mine);
+  const data = useWorkData();
+  if (!me) return null;
+  const input = { me, base: '/manager', ...data };
+  const work = consultantWork(input);
+  const mine = data.team?.filter((p) => p.id !== me.id) ?? [];
+  const creds = credentialWork(mine);
+  const newLeads = (id: string) =>
+    data.leads?.filter((l) => l.consultantId === id && l.status === 'NEW').length ?? 0;
 
   return (
     <>
       <PageHeader
-        title={greet(me?.firstName)}
-        intro={`You manage ${mine.length} salesperson${mine.length === 1 ? '' : 's'}.`}
+        title={greet(me.firstName)}
+        intro={`Your own buyers first, then your team of ${mine.length}.`}
+        actions={
+          <ButtonLink to="/manager/reports" variant="secondary">
+            Team report
+          </ButtonLink>
+        }
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Team members" value={mine.length} />
-        <StatCard label="Verified" value={work.verified.length} tone="verified" />
-        <StatCard
-          label="Expired"
-          value={work.expired.length}
-          tone={work.expired.length ? 'danger' : undefined}
-        />
-      </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Expired credentials" />
-          <PersonList rows={work.expired} empty="None of your team's credentials have expired." />
-        </Card>
-        <Card>
-          <CardHeader title="Under review" />
-          <PersonList
-            rows={[...work.review, ...work.reading]}
-            empty="Nothing from your team is under review."
+      <SaleFlow stages={stages(input, 'all')} title="Where your team's deals are" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+        {data.ready ? (
+          <TaskList
+            tasks={work.tasks}
+            empty="Nothing of yours needs you right now. New leads and vouchers to sign show up here."
           />
-        </Card>
+        ) : (
+          <div />
+        )}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Your team" description="New leads each person hasn't called yet." />
+            {mine.length === 0 ? (
+              <EmptyState>No salespeople report to you yet.</EmptyState>
+            ) : (
+              <ul className="-mx-2 divide-y divide-line">
+                {mine.map((p) => {
+                  const n = newLeads(p.id);
+                  const expired = creds.expired.some((r) => r.person.id === p.id);
+                  return (
+                    <li key={p.id} className="flex items-center gap-3 px-2 py-2.5">
+                      <Avatar first={p.firstName} last={p.lastName} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{fullName(p)}</p>
+                        <p className={`text-xs ${expired ? 'text-flag' : 'text-muted'}`}>
+                          {expired ? 'License expired' : ROLE_LABEL[p.role]}
+                        </p>
+                      </div>
+                      <p className={`text-sm font-semibold tabular-nums ${n ? '' : 'text-muted'}`}>
+                        {n} new
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+          <WaitingList items={work.waiting} />
+          {me.referralCode && <ReferralCard code={me.referralCode} />}
+        </div>
       </div>
     </>
   );
 }
 
+/** Sales Person: their buyers, from new lead to completed sale. */
 export function SalespersonHome() {
   const { data: me } = useMe();
+  const data = useWorkData();
   if (!me) return null;
+  const input = { me, base: '/salesperson', ...data };
+  const work = consultantWork(input);
   const verified = me.credentials.some((c) => credentialState(c) === 'verified');
 
   return (
     <>
       <PageHeader
         title={greet(me.firstName)}
-        intro={me.firm ? `Salesperson at ${me.firm.name}.` : undefined}
+        intro={
+          me.firm ? `Your buyers at ${me.firm.name}, and what to do next for each.` : undefined
+        }
       />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Your credentials"
-            description={
-              verified
-                ? undefined
-                : 'Buyers see a verified badge once a broker approves a current credential.'
-            }
+      {!verified && (
+        <p
+          role="status"
+          className="mb-6 rounded-xl bg-flag-pale px-4 py-3 text-sm font-medium text-flag"
+        >
+          Buyers can&rsquo;t pick you yet: you need a current license approved by a broker. Ask your
+          company admin to upload your DHSUD registration.
+        </p>
+      )}
+      <SaleFlow stages={stages(input, 'mine')} title="Where your deals are" />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+        {data.ready ? (
+          <TaskList
+            tasks={work.tasks}
+            empty="You're up to date. New leads appear here as soon as a buyer inquires."
           />
-          {me.credentials.length === 0 ? (
-            <EmptyState>
-              None on file. Ask your company admin to upload your DHSUD registration.
-            </EmptyState>
-          ) : (
-            <ul className="flex flex-wrap gap-2">
-              {me.credentials.map((c) => (
-                <li key={c.id}>
-                  <CredentialBadge credential={c} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        {me.referralCode && (
-          <Card>
-            <CardHeader
-              title="Your referral code"
-              description="Buyers who inquire with your code are assigned to you."
-            />
-            <p className="inline-block rounded-xl bg-canvas px-4 py-3 font-mono text-2xl font-bold tracking-wider select-all">
-              {me.referralCode}
-            </p>
-          </Card>
+        ) : (
+          <div />
         )}
+        <div className="space-y-6">
+          <WaitingList items={work.waiting} />
+          {me.referralCode && <ReferralCard code={me.referralCode} />}
+          {me.credentials.length > 0 && (
+            <Card>
+              <CardHeader title="Your credentials" />
+              <ul className="flex flex-wrap gap-2">
+                {me.credentials.map((c) => (
+                  <li key={c.id}>
+                    <CredentialBadge credential={c} />
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </div>
       </div>
     </>
+  );
+}
+
+/** The consultant's referral code (§10.7), with a one-click copy. */
+function ReferralCard({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Card>
+      <CardHeader
+        title="Your referral code"
+        description="Share a listing with this code and the buyer is assigned to you. Each listing in Listings has a copy-link button."
+      />
+      <div className="flex items-center gap-2">
+        <p className="rounded-xl bg-canvas px-4 py-2.5 text-xl font-bold tracking-wider tabular-nums select-all">
+          {code}
+        </p>
+        <Button
+          variant="ghost"
+          onClick={async () => {
+            await navigator.clipboard.writeText(code);
+            setCopied(true);
+          }}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+    </Card>
   );
 }

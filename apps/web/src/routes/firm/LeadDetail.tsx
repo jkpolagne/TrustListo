@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Phone } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/AppShell';
 import { Field, FormError, PrimaryButton } from '../../components/Form';
@@ -122,9 +122,19 @@ export function LeadDetail() {
         <div className="space-y-6">
           {l.isMine && l.status !== 'RESERVED' ? (
             <>
-              <UpdateStatus l={l} />
-              {l.status !== 'LOST' && <ConvertLead l={l} role={me.role} />}
-              {l.status !== 'LOST' && <ScheduleVisit l={l} />}
+              {l.status !== 'LOST' && <NextStep l={l} />}
+              {/* In the order the work happens: visit first, then the reservation. */}
+              {l.status !== 'LOST' && (
+                <div id="schedule" className="scroll-mt-6">
+                  <ScheduleVisit l={l} />
+                </div>
+              )}
+              {l.status !== 'LOST' && (
+                <div id="reserve" className="scroll-mt-6">
+                  <ConvertLead l={l} role={me.role} />
+                </div>
+              )}
+              <UpdateStatus key={l.status} l={l} />
             </>
           ) : (
             <Card>
@@ -152,6 +162,93 @@ export function LeadDetail() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The one thing to do next for this lead (§10.1), so the page reads as a sequence:
+ * call → visit (admin approves) → reservation receipt → client.
+ */
+function NextStep({ l }: { l: Detail }) {
+  const qc = useQueryClient();
+  const first = l.buyerName.split(' ')[0];
+  const contacted = useMutation({
+    mutationFn: () => api(`/inquiries/${l.id}`, { method: 'PATCH', json: { status: 'CONTACTED' } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
+  });
+  const now = Date.now();
+  const active = l.visits.find((v) => v.status === 'PENDING' || v.status === 'APPROVED');
+  const visited =
+    l.status === 'VISIT_SCHEDULED' ||
+    l.visits.some(
+      (v) =>
+        v.status === 'COMPLETED' ||
+        (v.status === 'APPROVED' && new Date(v.scheduledAt).getTime() < now),
+    );
+
+  const inverse =
+    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors';
+  let title: string;
+  let body: string;
+  let actions: ReactNode = null;
+
+  if (l.status === 'NEW') {
+    title = `Call ${first}`;
+    body = `They're waiting to hear from you. Once you've talked, mark them contacted so your admin knows.`;
+    actions = (
+      <>
+        <a href={`tel:${l.buyerPhone}`} className={`${inverse} bg-paper text-ink hover:bg-canvas`}>
+          <Phone aria-hidden className="size-4" />
+          Call {l.buyerPhone}
+        </a>
+        <button
+          type="button"
+          disabled={contacted.isPending}
+          onClick={() => contacted.mutate()}
+          className={`${inverse} border border-paper/40 text-paper hover:bg-paper/10 disabled:opacity-50`}
+        >
+          I&rsquo;ve talked to them
+        </button>
+      </>
+    );
+  } else if (active?.status === 'PENDING') {
+    title = 'Waiting for the visit to be approved';
+    body = `You asked for ${when.format(new Date(active.scheduledAt))}. Your company admin approves or suggests another time.`;
+  } else if (active?.status === 'APPROVED' && new Date(active.scheduledAt).getTime() > now) {
+    title = `Visit on ${when.format(new Date(active.scheduledAt))}`;
+    body = `After the visit, if ${first} reserves, upload the reservation receipt to make them a client.`;
+  } else if (visited) {
+    title = `Did ${first} reserve?`;
+    body = `Upload the reservation receipt to make them a client. If they're not buying, mark the lead lost below.`;
+    actions = (
+      <a href="#reserve" className={`${inverse} bg-paper text-ink hover:bg-canvas`}>
+        Upload the receipt
+      </a>
+    );
+  } else {
+    title = `Schedule a visit with ${first}`;
+    body = 'Agree on a time with the buyer, then request it. Your company admin approves it.';
+    actions = (
+      <a href="#schedule" className={`${inverse} bg-paper text-ink hover:bg-canvas`}>
+        Pick a time
+      </a>
+    );
+  }
+
+  return (
+    <section aria-labelledby="next-step" className="rounded-2xl bg-ink p-5 text-paper sm:p-6">
+      <p className="text-sm font-medium text-paper/70">Next step</p>
+      <h2 id="next-step" className="mt-1 text-lg leading-snug font-bold">
+        {title}
+      </h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-paper/80">{body}</p>
+      {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
+      {contacted.error && (
+        <p role="alert" className="mt-3 text-sm text-paper">
+          Couldn&rsquo;t save. Try again.
+        </p>
+      )}
+    </section>
   );
 }
 

@@ -67,7 +67,17 @@ commissionsRouter.get('/commissions', async (req, res) => {
     // Voucher state lets the list tell "ready for a voucher" from "waiting for signatures".
     include: {
       tranches: {
-        include: { voucher: { select: { id: true, brokerSignedAt: true, releasedAt: true } } },
+        include: {
+          voucher: {
+            select: {
+              id: true,
+              brokerSignedAt: true,
+              releasedAt: true,
+              contentHash: true,
+              consultantSignatures: true, // so "sign this voucher" can show on a payee's to-do list
+            },
+          },
+        },
       },
     },
   });

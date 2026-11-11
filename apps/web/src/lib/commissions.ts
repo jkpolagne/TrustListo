@@ -134,7 +134,13 @@ export interface Tranche {
   requiresTransmittal: boolean;
   periodMonth: string | null;
   /** Full voucher on the deal page; id and signing dates in the list. */
-  voucher?: (Pick<Voucher, 'id' | 'brokerSignedAt' | 'releasedAt'> & Partial<Voucher>) | null;
+  voucher?:
+    | (Pick<
+        Voucher,
+        'id' | 'brokerSignedAt' | 'releasedAt' | 'contentHash' | 'consultantSignatures'
+      > &
+        Partial<Voucher>)
+    | null;
 }
 
 export interface CommissionRow {
@@ -210,6 +216,15 @@ export function shareOf(amount: string | number, people: SplitPerson[], userId: 
   const rest = target - shares.reduce((s, x) => s + x, 0);
   shares[shares.length - 1]! += rest;
   return shares[i]! / 100;
+}
+
+/** Whether a payee still has to sign this tranche's voucher (broker signed, they haven't). */
+export function awaitsMySignature(t: Tranche, userId: string): boolean {
+  const v = t.voucher;
+  if (!v || v.releasedAt || !v.brokerSignedAt || t.status !== 'READY_FOR_RELEASE') return false;
+  return !(v.consultantSignatures ?? []).some(
+    (s) => s.userId === userId && s.hash === v.contentHash,
+  );
 }
 
 /** Days since a date, for transmittal aging. */

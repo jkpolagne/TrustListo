@@ -29,8 +29,29 @@ export function ClosingCard({
       if (d.ratingToken) setToken(d.ratingToken);
     },
   });
+  const [opened, setOpened] = useState(false);
   if (!q.data) return null;
   const c = q.data;
+
+  // Closing comes months after the reservation: fold it away until someone starts it.
+  if (c.clientStatus === 'ACTIVE' && !c.saved && !opened) {
+    return (
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold">Closing and transfer</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              The last stage: transfer taxes and title. Start it when the property is ready to
+              transfer.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => setOpened(true)}>
+            {c.canEdit ? 'Start closing' : 'See the estimate'}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <>
