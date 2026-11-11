@@ -18,6 +18,8 @@ import { Leads } from './routes/firm/Leads';
 import { Visits } from './routes/firm/Visits';
 import { ClientDetail } from './routes/firm/ClientDetail';
 import { Clients } from './routes/firm/Clients';
+import { CommissionDetail } from './routes/firm/CommissionDetail';
+import { Commissions } from './routes/firm/Commissions';
 import { Login } from './routes/auth/Login';
 import { Activity } from './routes/firm/Activity';
 import { AdminHome, BrokerHome, ManagerHome, SalespersonHome } from './routes/firm/Dashboards';
@@ -108,6 +110,8 @@ const router = createBrowserRouter([
         { path: `${base}/visits`, element: only([role], <Visits />) },
         { path: `${base}/clients`, element: only([role], <Clients />) },
         { path: `${base}/clients/:id`, element: only([role], <ClientDetail />) },
+        { path: `${base}/commissions`, element: only([role], <Commissions />) },
+        { path: `${base}/commissions/:id`, element: only([role], <CommissionDetail />) },
       ]),
 
       { path: '/account', element: <Account /> },

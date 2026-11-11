@@ -23,6 +23,7 @@ const VIEWERS: Partial<Record<string, string[]>> = {
   PROPERTY: ['COMPANY_ADMIN', 'BROKER'],
   CLIENT: ['COMPANY_ADMIN', 'BROKER'],
   PAYMENT: ['COMPANY_ADMIN', 'BROKER'],
+  TRANSMITTAL: ['COMPANY_ADMIN', 'BROKER'], // developer's commission transmittal (§10.4)
 };
 
 async function findViewable(req: Express.Request, id: string) {

@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/AppShell';
 import { Field, FormError, FormSuccess, PrimaryButton } from '../../components/Form';
 import { Card, CardHeader } from '../../components/ui';
 import { api } from '../../lib/api';
+import { CommissionSettings } from './CommissionSettings';
 
 interface Settings {
   name: string;
@@ -71,11 +72,14 @@ export function FirmSettings() {
     <>
       <PageHeader
         title="Settings"
-        intro="Starting values for the loan calculator on your listings. Buyers can still change them."
+        intro="Loan calculator values buyers see on your listings, and how commissions are earned and split."
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Card>
-          <CardHeader title="Loan calculator" />
+          <CardHeader
+            title="Loan calculator"
+            description="Starting values. Buyers can still change them."
+          />
           <form
             onSubmit={(e: FormEvent) => {
               e.preventDefault();
@@ -126,6 +130,7 @@ export function FirmSettings() {
           </p>
         </Card>
       </div>
+      <CommissionSettings />
     </>
   );
 }

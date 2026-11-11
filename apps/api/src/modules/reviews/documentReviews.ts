@@ -86,9 +86,10 @@ export async function ownerOf(d: { ownerType: DocOwner; ownerId: string }): Prom
 
 /**
  * Not reviewed by the broker in this queue: credentials (own screen, listed with their holder)
- * and payment receipts (the uploader confirms the amount, §8.3).
+ * payment receipts (the uploader confirms the amount, §8.3) and developer transmittals (the
+ * CompanyAdmin confirms the amount on the commission, §10.4).
  */
-const NOT_IN_QUEUE = ['CREDENTIAL', 'PAYMENT'] as const;
+const NOT_IN_QUEUE = ['CREDENTIAL', 'PAYMENT', 'TRANSMITTAL'] as const;
 
 /** Review-queue rows for documents, oldest first. */
 export async function documentQueue(firmId: string) {

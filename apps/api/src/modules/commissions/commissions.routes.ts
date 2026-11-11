@@ -64,7 +64,12 @@ async function withContext(rows: Prisma.CommissionGetPayload<{ include: { tranch
 commissionsRouter.get('/commissions', async (req, res) => {
   const rows = await prisma.commission.findMany({
     where: commissionWhere(req),
-    include: { tranches: true },
+    // Voucher state lets the list tell "ready for a voucher" from "waiting for signatures".
+    include: {
+      tranches: {
+        include: { voucher: { select: { id: true, brokerSignedAt: true, releasedAt: true } } },
+      },
+    },
   });
   const data = await withContext(rows);
   // Broker dashboard: tranches waiting for the developer's transmittal, by age (§10.6).

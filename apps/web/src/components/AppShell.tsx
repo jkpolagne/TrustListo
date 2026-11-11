@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Contact,
   Inbox,
+  Receipt,
   UserRoundSearch,
   type LucideIcon,
 } from 'lucide-react';
@@ -25,7 +26,7 @@ import { Avatar } from './ui';
 
 type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean };
 
-// Only screens that exist. Later milestones add listings, leads, clients, commissions.
+// Only screens that exist.
 export const NAV: Record<Role, NavItem[]> = {
   SUPER_ADMIN: [{ to: '/superadmin', label: 'Firms', icon: Building2, end: true }],
   COMPANY_ADMIN: [
@@ -34,6 +35,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/admin/leads', label: 'Leads', icon: UserRoundSearch },
     { to: '/admin/visits', label: 'Visits', icon: CalendarDays },
     { to: '/admin/clients', label: 'Clients', icon: Contact },
+    { to: '/admin/commissions', label: 'Commissions', icon: Receipt },
     { to: '/admin/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/admin/team', label: 'Team', icon: Users },
     { to: '/admin/activity', label: 'Activity log', icon: History },
@@ -45,6 +47,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/broker/leads', label: 'Leads', icon: UserRoundSearch },
     { to: '/broker/visits', label: 'Visits', icon: CalendarDays },
     { to: '/broker/clients', label: 'Clients', icon: Contact },
+    { to: '/broker/commissions', label: 'Commissions', icon: Receipt },
     { to: '/broker/sellers', label: 'Seller requests', icon: Inbox },
     { to: '/broker/team', label: 'Team', icon: Users },
     { to: '/broker/activity', label: 'Activity log', icon: History },
@@ -56,6 +59,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/manager/leads', label: 'Leads', icon: UserRoundSearch },
     { to: '/manager/visits', label: 'Visits', icon: CalendarDays },
     { to: '/manager/clients', label: 'Clients', icon: Contact },
+    { to: '/manager/commissions', label: 'My commissions', icon: Receipt },
     { to: '/manager/sellers', label: 'Seller requests', icon: Inbox },
   ],
   SALES_PERSON: [
@@ -64,6 +68,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { to: '/salesperson/leads', label: 'Leads', icon: UserRoundSearch },
     { to: '/salesperson/visits', label: 'Visits', icon: CalendarDays },
     { to: '/salesperson/clients', label: 'Clients', icon: Contact },
+    { to: '/salesperson/commissions', label: 'My commissions', icon: Receipt },
     { to: '/salesperson/sellers', label: 'Seller requests', icon: Inbox },
   ],
 };

@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/AppShell';
 import { CredentialBadge } from '../../components/CredentialBadge';
 import { Avatar, ButtonLink, Card, CardHeader, EmptyState, StatCard } from '../../components/ui';
 import { useMe } from '../../lib/auth';
+import { useCommissions } from '../../lib/commissions';
 import { aiSummary, docTypeName, useReviewQueue, type QueuedDocument } from '../../lib/reviews';
 import { credentialState, fullName, useTeam, type TeamMember } from '../../lib/team';
 
@@ -205,12 +206,48 @@ export function BrokerHome() {
             />
           </Card>
         </div>
-        <Card className="self-start">
-          <CardHeader title="Expired" />
-          <PersonList rows={work?.expired ?? []} empty="No expired credentials." />
-        </Card>
+        <div className="space-y-6 self-start">
+          <CommissionWork />
+          <Card>
+            <CardHeader title="Expired" />
+            <PersonList rows={work?.expired ?? []} empty="No expired credentials." />
+          </Card>
+        </div>
       </div>
     </>
+  );
+}
+
+/** Commission work for the broker: vouchers to prepare or sign, and old transmittals (§10.6). */
+function CommissionWork() {
+  const q = useCommissions();
+  const tranches = q.data?.data.flatMap((c) => c.tranches) ?? [];
+  const toVoucher = tranches.filter((t) => t.status === 'READY_FOR_RELEASE' && !t.voucher).length;
+  const toSign = tranches.filter(
+    (t) => t.status === 'READY_FOR_RELEASE' && t.voucher && !t.voucher.brokerSignedAt,
+  ).length;
+  const overdue = q.data?.awaiting.filter((a) => a.bucket === '90+').length ?? 0;
+  return (
+    <Card>
+      <CardHeader title="Commissions" />
+      <dl className="space-y-2 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Ready for your voucher</dt>
+          <dd className="font-bold tabular-nums">{toVoucher}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Vouchers for you to sign</dt>
+          <dd className="font-bold tabular-nums">{toSign}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-muted">Transmittals over 90 days</dt>
+          <dd className={`font-bold tabular-nums ${overdue ? 'text-flag' : ''}`}>{overdue}</dd>
+        </div>
+      </dl>
+      <ButtonLink to="/broker/commissions" variant="secondary" className="mt-4 w-full">
+        Open commissions
+      </ButtonLink>
+    </Card>
   );
 }
 

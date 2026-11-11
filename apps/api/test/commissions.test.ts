@@ -54,6 +54,14 @@ describe('M8: transmittal → voucher → signatures → released', () => {
     await whenIdle();
     const doc = await prisma.document.findUniqueOrThrow({ where: { id: up.body.documentId } });
     expect((doc.flags as { code: string }[]).map((f) => f.code)).toContain('AMOUNT_MISMATCH');
+    // The admin (and broker) can open the file to compare; a salesperson cannot.
+    expect((await admin.agent.get(`/api/v1/documents/${doc.id}/url`)).status).toBe(200);
+    expect((await broker.agent.get(`/api/v1/documents/${doc.id}/url`)).status).toBe(200);
+    const sp = await signIn('sp2@advench.test');
+    expect((await sp.agent.get(`/api/v1/documents/${doc.id}/url`)).status).toBe(404);
+    // The admin confirms transmittals, so they stay out of the broker's review queue.
+    const queue = await broker.agent.get('/api/v1/reviews/queue');
+    expect(queue.body.documents.map((d: { id: string }) => d.id)).not.toContain(doc.id);
 
     const noNote = await admin.agent
       .post(`/api/v1/tranches/${t.id}/transmittal/confirm`)
