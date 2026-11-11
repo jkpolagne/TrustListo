@@ -13,10 +13,13 @@ import { clearFailures, isLocked, recordFailure } from './lockout';
 
 export const authRouter = Router();
 
-// Per-IP brake on top of the per-email lockout.
+// Per-IP brake on password guessing, on top of the per-email lockout. Only failed attempts
+// count: a shared office computer (or a demo laptop) switching between accounts is never
+// locked out by its own successful sign-ins.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: env.NODE_ENV === 'test' ? 1000 : 30,
+  skipSuccessfulRequests: true,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   handler: (_req, res) => {

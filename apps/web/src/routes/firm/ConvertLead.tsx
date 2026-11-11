@@ -45,6 +45,7 @@ export function ConvertLead({ l, role }: { l: LeadDetail; role: Role }) {
     paymentMethod: (l.paymentPref === 'NOT_SURE' ? '' : l.paymentPref) as PaymentMethod | '',
     civilStatus: l.civilStatus as CivilStatus,
     employmentType: WORK_TO_EMPLOYMENT[l.natureOfWork] ?? '',
+    downpaymentAmount: '',
   });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -86,6 +87,10 @@ export function ConvertLead({ l, role }: { l: LeadDetail; role: Role }) {
           employmentType: needsEmployment(form.paymentMethod)
             ? form.employmentType
             : form.employmentType || null,
+          // Bank and Pag-IBIG commissions are released at % of the downpayment (§10.3).
+          downpaymentAmount: needsEmployment(form.paymentMethod)
+            ? Number(form.downpaymentAmount)
+            : null,
         },
       }),
     onSuccess: ({ clientId }) => {
@@ -224,6 +229,26 @@ export function ConvertLead({ l, role }: { l: LeadDetail; role: Role }) {
               </select>
             </Field>
           </div>
+          {needsEmployment(form.paymentMethod) && (
+            <Field
+              label="Required downpayment (₱)"
+              htmlFor="c-dp"
+              hint={`The total downpayment from the developer's computation${
+                Number(form.tcp) > 0
+                  ? `, e.g. 10% of the price is ${Math.round(Number(form.tcp) * 0.1).toLocaleString('en-PH')}`
+                  : ''
+              }. Commission milestones count against it.`}
+            >
+              <input
+                id="c-dp"
+                className="input"
+                inputMode="decimal"
+                required
+                value={form.downpaymentAmount}
+                onChange={set('downpaymentAmount')}
+              />
+            </Field>
+          )}
           {needsEmployment(form.paymentMethod) && (
             <Field
               label="Employment"

@@ -5,12 +5,19 @@
  *   pnpm --filter api demo:kit      → writes D:/TrustListooo/demo-kit/ (git-ignored)
  * Mock documents only, never real IDs or titles (SPEC §17).
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import * as mock from './mockDocs';
 
 const out = path.resolve(import.meta.dirname, '../../../../demo-kit');
 mkdirSync(out, { recursive: true });
+// Remove files an earlier version of this script made (other files, e.g. phone photos, stay).
+for (const f of readdirSync(out)) {
+  if (/^(\d\d[a-z]?-|M\d-\d-|PREP-)/.test(f)) rmSync(path.join(out, f));
+}
+// Openly licensed demo photos (see prisma/seed-photos/CREDITS.md).
+const photo = (name: string) =>
+  readFileSync(path.resolve(import.meta.dirname, '../seed-photos', name));
 const today = new Date().toISOString().slice(0, 10);
 
 const BUYER = { given: 'ROSA', last: 'MENDIOLA', middle: 'CRUZ' };
@@ -24,18 +31,17 @@ const dhsud = (name: string, registrationNumber: string) =>
   mock.dhsudCert({ name, registrationNumber, issued: inYears(-1), validUntil: inYears(2) });
 
 const files: [string, Promise<Buffer> | Buffer][] = [
-  // Module 2 setup: consultant licenses (the admin enters the number shown in the file name).
-  ['01a-dhsud-JOY-OCAMPO-DHSUD-R5-2001.png', dhsud('JOY OCAMPO', 'DHSUD-R5-2001')],
-  ['01b-dhsud-MARCO-DELA-CRUZ-DHSUD-R5-1001.png', dhsud('MARCO DELA CRUZ', 'DHSUD-R5-1001')],
-  ['01c-dhsud-RICO-SALAZAR-DHSUD-R5-3002.png', dhsud('RICO SALAZAR', 'DHSUD-R5-3002')],
+  ['M2-1-ella-model-photo.webp', photo('house-bungalow.webp')],
+  ['M2-2-seller-lot-photo.webp', photo('lot-graded.webp')],
+  // Module 1: consultant licenses (numbers are listed in docs/DEMO-GUIDE.md).
+  ['M1-1-joy-ocampo-license.png', dhsud('JOY OCAMPO', 'DHSUD-R5-2001')],
+  ['M1-2-marco-dela-cruz-license.png', dhsud('MARCO DELA CRUZ', 'DHSUD-R5-1001')],
+  ['PREP-rico-salazar-license.png', dhsud('RICO SALAZAR', 'DHSUD-R5-3002')],
   // Deliberately wrong: the certificate says Kristine, the consultant is Kris → flagged.
-  [
-    '01d-WRONG-dhsud-for-KRIS-NAVARRO-DHSUD-R5-2005.png',
-    dhsud('KRISTINE NAVARRO', 'DHSUD-R5-2005'),
-  ],
+  ['M1-3-WRONG-kris-navarro-license.png', dhsud('KRISTINE NAVARRO', 'DHSUD-R5-2005')],
   // Module 2 setup: the project's License to Sell, and one that has expired.
   [
-    '02a-lts-CAMELLA-NAGA.png',
+    'M1-5-license-to-sell.png',
     mock.licenseToSell({
       ltsNumber: 'LTS-R5-2024-0101',
       project: 'Camella Naga',
@@ -46,7 +52,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '02b-EXPIRED-lts-CAMELLA-NAGA.png',
+    'M1-4-EXPIRED-license-to-sell.png',
     mock.licenseToSell({
       ltsNumber: 'LTS-R5-2019-0101',
       project: 'Camella Naga',
@@ -57,7 +63,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '06a-reservation-receipt.png',
+    'M3-1-reservation-receipt.png',
     mock.paymentReceipt({
       orNumber: 'CN-77101',
       date: today,
@@ -68,7 +74,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '06b-downpayment-receipt.png',
+    'M3-2-downpayment-receipt.png',
     mock.paymentReceipt({
       orNumber: 'CN-77102',
       date: today,
@@ -79,7 +85,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '07a-buyer-id-philsys.png',
+    'M3-3-buyer-id.png',
     mock.validId({
       kind: 'philsys',
       ...BUYER,
@@ -88,7 +94,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '07b-WRONG-id-someone-else.png',
+    'M3-4-WRONG-buyer-id.png',
     mock.validId({
       kind: 'philsys',
       last: 'SANTOS',
@@ -99,7 +105,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '07c-buyer-id-drivers-license.png',
+    'M3-5-buyer-drivers-license.png',
     mock.validId({
       kind: 'drivers',
       ...BUYER,
@@ -109,7 +115,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '08-transmittal-tranche-1.png',
+    'M3-6-developer-transmittal.png',
     mock.transmittal({
       developer: 'Vista Land (Camella)',
       firm: 'Advench Realty',
@@ -121,7 +127,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '09a-seller-land-title.png',
+    'M2-3-seller-land-title.png',
     mock.landTitle({
       titleNumber: 'T-128844',
       owner: SELLER,
@@ -133,7 +139,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '09b-seller-tax-declaration.png',
+    'M2-4-seller-tax-declaration.png',
     mock.taxDeclaration({
       tdNumber: '06-0021-01182',
       owner: SELLER,
@@ -146,7 +152,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '09c-seller-tax-receipt.png',
+    'M2-5-seller-tax-receipt.png',
     mock.rptReceipt({
       orNumber: '4417820',
       date: today,
@@ -157,7 +163,7 @@ const files: [string, Promise<Buffer> | Buffer][] = [
     }),
   ],
   [
-    '09d-seller-id.png',
+    'M2-6-seller-id.png',
     mock.validId({
       kind: 'drivers',
       last: 'LAGMAN',
