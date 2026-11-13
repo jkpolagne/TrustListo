@@ -2,6 +2,7 @@ import { randomInt } from 'node:crypto';
 import argon2 from 'argon2';
 import { Router } from 'express';
 import { z } from 'zod';
+import { env } from '../../env';
 import { audit } from '../../lib/audit';
 import { prisma } from '../../lib/prisma';
 import { firmScope, userScope } from '../../lib/scope';
@@ -114,6 +115,9 @@ async function uniqueReferralCode(firstName: string, lastName: string): Promise<
 
 /** Readable one-time password; the consultant changes it after first sign-in. */
 function temporaryPassword(): string {
+  // Development/demo: every account uses the demo password, so the sign-in page's
+  // demo shortcuts work for staff added during the demo. Production stays random.
+  if (env.NODE_ENV === 'development') return 'Password123!';
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   for (;;) {
     const pw = Array.from({ length: 12 }, () => alphabet[randomInt(alphabet.length)]).join('');

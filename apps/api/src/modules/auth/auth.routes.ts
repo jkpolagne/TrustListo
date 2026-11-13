@@ -100,6 +100,39 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
   res.json({ role: user.role });
 });
 
+// Demo helper for the sign-in page: every active account, so staff added during the demo
+// appear without editing code. Development only — in production this route does not exist.
+if (env.NODE_ENV === 'development') {
+  const roleOrder = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'BROKER', 'SALES_MANAGER', 'SALES_PERSON'];
+  authRouter.get('/demo-accounts', async (_req, res) => {
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: {
+        email: true,
+        role: true,
+        firstName: true,
+        lastName: true,
+        createdAt: true,
+        firm: { select: { name: true } },
+      },
+    });
+    users.sort(
+      (a, b) =>
+        (a.firm?.name ?? '').localeCompare(b.firm?.name ?? '') ||
+        roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role) ||
+        a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    res.json(
+      users.map((u) => ({
+        email: u.email,
+        role: u.role,
+        name: `${u.firstName} ${u.lastName}`,
+        firm: u.firm?.name ?? null,
+      })),
+    );
+  });
+}
+
 authRouter.post('/logout', async (req, res) => {
   endSession(res);
   res.status(204).end();
